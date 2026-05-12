@@ -32,10 +32,10 @@ Type names are identical to their WinUI counterparts so consumers can switch wit
 
 ```csharp
 #if WINDOWS_APP_SDK
-using XamlInlines = Microsoft.UI.Xaml.Documents.InlineCollection;
+using Inlines = Microsoft.UI.Xaml.Documents.InlineCollection;
 // ...
 #else
-using XamlInlines = LeXtudio.UI.Xaml.Documents.InlineCollection;
+using Inlines = LeXtudio.UI.Xaml.Documents.InlineCollection;
 // ...
 #endif
 ```
@@ -254,25 +254,25 @@ private double ResolvedLineHeight =>
 
 ```csharp
 #if WINDOWS_APP_SDK
-using XamlRichTextBlock     = Microsoft.UI.Xaml.Controls.RichTextBlock;
-using XamlInlineCollection  = Microsoft.UI.Xaml.Documents.InlineCollection;
-using XamlRun               = Microsoft.UI.Xaml.Documents.Run;
-using XamlBold              = Microsoft.UI.Xaml.Documents.Bold;
-using XamlItalic            = Microsoft.UI.Xaml.Documents.Italic;
-using XamlSpan              = Microsoft.UI.Xaml.Documents.Span;
-using XamlLineBreak         = Microsoft.UI.Xaml.Documents.LineBreak;
-using XamlInlineUIContainer = Microsoft.UI.Xaml.Documents.InlineUIContainer;
-using XamlHyperlink         = Microsoft.UI.Xaml.Documents.Hyperlink;
+using RichTextBlock     = Microsoft.UI.Xaml.Controls.RichTextBlock;
+using InlineCollection  = Microsoft.UI.Xaml.Documents.InlineCollection;
+using Run               = Microsoft.UI.Xaml.Documents.Run;
+using Bold              = Microsoft.UI.Xaml.Documents.Bold;
+using Italic            = Microsoft.UI.Xaml.Documents.Italic;
+using Span              = Microsoft.UI.Xaml.Documents.Span;
+using LineBreak         = Microsoft.UI.Xaml.Documents.LineBreak;
+using InlineUIContainer = Microsoft.UI.Xaml.Documents.InlineUIContainer;
+using Hyperlink         = Microsoft.UI.Xaml.Documents.Hyperlink;
 #else
-using XamlRichTextBlock     = LeXtudio.UI.Xaml.Controls.RichTextBlock;
-using XamlInlineCollection  = LeXtudio.UI.Xaml.Documents.InlineCollection;
-using XamlRun               = LeXtudio.UI.Xaml.Documents.Run;
-using XamlBold              = LeXtudio.UI.Xaml.Documents.Bold;
-using XamlItalic            = LeXtudio.UI.Xaml.Documents.Italic;
-using XamlSpan              = LeXtudio.UI.Xaml.Documents.Span;
-using XamlLineBreak         = LeXtudio.UI.Xaml.Documents.LineBreak;
-using XamlInlineUIContainer = LeXtudio.UI.Xaml.Documents.InlineUIContainer;
-using XamlHyperlink         = LeXtudio.UI.Xaml.Documents.Hyperlink;
+using RichTextBlock     = LeXtudio.UI.Xaml.Controls.RichTextBlock;
+using InlineCollection  = LeXtudio.UI.Xaml.Documents.InlineCollection;
+using Run               = LeXtudio.UI.Xaml.Documents.Run;
+using Bold              = LeXtudio.UI.Xaml.Documents.Bold;
+using Italic            = LeXtudio.UI.Xaml.Documents.Italic;
+using Span              = LeXtudio.UI.Xaml.Documents.Span;
+using LineBreak         = LeXtudio.UI.Xaml.Documents.LineBreak;
+using InlineUIContainer = LeXtudio.UI.Xaml.Documents.InlineUIContainer;
+using Hyperlink         = LeXtudio.UI.Xaml.Documents.Hyperlink;
 #endif
 ```
 
@@ -288,7 +288,6 @@ All method bodies use `Xaml*` aliases — no scattered `#if` inside logic.
 
 ## Open Items / Future Work
 
-- **`Blocks` / `Paragraph` API**: Multi-paragraph `RichTextBlock` (needed for full WinUI parity). Not required for current WinUI.Markdown usage.
-- **Text selection**: `IsTextSelectionEnabled`, `SelectedText` — deferred.
-- **Performance**: Cache `PreparedRichInline` across layout passes when content hasn't changed (use a dirty flag set by `InlineCollection.CollectionChanged`).
-- **Windows target**: Provide a `net10.0-windows` build that re-exports native WinUI types, eliminating the `#if WINDOWS_APP_SDK` aliases in consumers entirely.
+- [ ] **`Blocks` / `Paragraph` API**: Multi-paragraph `RichTextBlock` (needed for full WinUI parity). Not required for current WinUI.Markdown usage.
+- [ ] **Text selection**: `IsTextSelectionEnabled`, `SelectedText` — deferred.
+- [ ] **Performance**: Cache `PreparedRichInline` across layout passes when content hasn't changed (use a dirty flag set by `InlineCollection.CollectionChanged`).
