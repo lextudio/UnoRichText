@@ -16,7 +16,7 @@
     <Description>LeXtudio.RichText — a rich text layout control for Uno Platform, providing RichTextBlock, Paragraph, Span, Bold, Italic, Hyperlink, InlineUIContainer and related document types backed by PretextSharp.</Description>
     <PackageTags>richtext;uno;lextudio;richtextblock;paragraph</PackageTags>
     <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/LeXtudio/uno-tools</RepositoryUrl>
+    <RepositoryUrl>https://github.com/lextudio/UnoRichText</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>logo.png</PackageIcon>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
