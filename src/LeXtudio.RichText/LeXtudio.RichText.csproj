@@ -1,0 +1,37 @@
+<Project Sdk="Uno.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-desktop</TargetFrameworks>
+    <RootNamespace>LeXtudio.UI.Xaml</RootNamespace>
+    <AssemblyName>LeXtudio.RichText</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <WinUISDKReferences>false</WinUISDKReferences>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+
+    <!-- NuGet package metadata -->
+    <PackageId>LeXtudio.RichText</PackageId>
+    <Authors>LeXtudio</Authors>
+    <Company>LeXtudio</Company>
+    <Description>LeXtudio.RichText — a rich text layout control for Uno Platform, providing RichTextBlock, Paragraph, Span, Bold, Italic, Hyperlink, InlineUIContainer and related document types backed by PretextSharp.</Description>
+    <PackageTags>richtext;uno;lextudio;richtextblock;paragraph</PackageTags>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/LeXtudio/uno-tools</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>logo.png</PackageIcon>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <IsPackable>true</IsPackable>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Pretext.Uno" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="" />
+    <None Include="..\..\images\company_logo_512.png" Pack="true" PackagePath="logo.png" />
+  </ItemGroup>
+</Project>

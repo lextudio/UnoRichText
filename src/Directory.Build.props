@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <UnoUIDisableLongPathWarning>true</UnoUIDisableLongPathWarning>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="GitVersion.MsBuild" PrivateAssets="All" />
+  </ItemGroup>
+</Project>

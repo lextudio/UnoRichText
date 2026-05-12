@@ -1,0 +1,6 @@
+[submodule "LeXtudio.RichText/ext/PretextSharp"]
+	path = LeXtudio.RichText/ext/PretextSharp
+	url = https://github.com/wieslawsoltes/PretextSharp
+[submodule "ext/PretextSharp"]
+	path = ext/PretextSharp
+	url = https://github.com/wieslawsoltes/PretextSharp
