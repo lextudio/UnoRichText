@@ -51,6 +51,9 @@ public class RichTextBlock : Panel
 
     public RichTextBlock()
     {
+        VerticalAlignment = VerticalAlignment.Top;
+        HorizontalAlignment = HorizontalAlignment.Stretch;
+
         lock (AllInstances)
         {
             AllInstances.RemoveAll(wr => !wr.TryGetTarget(out _));
@@ -163,6 +166,8 @@ public class RichTextBlock : Panel
         var flatItems = new List<FlatItem>();
         CollectFlatItems(flatItems, root);
 
+        _focusSink.Measure(new Size(0, 0));
+
         if (flatItems.Count == 0)
         {
             _flatItems = Array.Empty<FlatItem>();
@@ -235,13 +240,17 @@ public class RichTextBlock : Panel
         foreach (var seg in _preparedSegments)
         {
             var stats = PretextLayout.MeasureRichInlineStats(seg.Prepared, maxWidth);
-            totalHeight += stats.LineCount * ResolvedLineHeight;
+            var segLineHeight = ResolvedLineHeight;
+            for (var j = seg.FlatItemOffset; j < seg.FlatItemOffset + seg.Items.Length && j < _flatItems.Length; j++)
+            {
+                if (_flatItems[j] is TextRunItem t)
+                    segLineHeight = Math.Max(segLineHeight, t.Props.FontSize * 1.4);
+                else if (_flatItems[j] is UiContainerItem ui)
+                    segLineHeight = Math.Max(segLineHeight, ui.MeasuredHeight);
+            }
+            totalHeight += stats.LineCount * segLineHeight;
             maxLineWidth = Math.Max(maxLineWidth, stats.MaxLineWidth);
         }
-        // UiContainerItems taller than one text line need extra vertical space.
-        foreach (var item in flatItems.OfType<UiContainerItem>())
-            if (item.MeasuredHeight > ResolvedLineHeight)
-                totalHeight += item.MeasuredHeight - ResolvedLineHeight;
         _totalHeight = totalHeight;
 
         var desired = new Size(Math.Min(maxLineWidth, availableSize.Width), _totalHeight);
@@ -340,6 +349,8 @@ public class RichTextBlock : Panel
                         };
                         tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
                         fragmentWidth = tb.DesiredSize.Width > 0 ? tb.DesiredSize.Width : fragment.OccupiedWidth;
+                        if (tb.DesiredSize.Height > 0)
+                            lineHeight = Math.Max(lineHeight, tb.DesiredSize.Height);
                         if (textItem.Hyperlink is { } link)
                             tb.Tapped += (_, _) => OnHyperlinkTapped(link);
                         el = tb;
@@ -381,6 +392,7 @@ public class RichTextBlock : Panel
         }
 
         _totalHeight = currentY;
+        _focusSink.Arrange(new Rect(0, 0, 0, 0));
         _canvas.Width = finalSize.Width;
         _canvas.Height = _totalHeight;
         _canvas.Arrange(new Rect(0, 0, finalSize.Width, _totalHeight));
@@ -713,7 +725,15 @@ public class RichTextBlock : Panel
         {
             if (i > 0)
                 result.Add(new TextRunItem("\n", root));
-            if (_blocks[i] is Paragraph bp) FlattenInlines(bp.Inlines, result, root);
+            if (_blocks[i] is Paragraph bp)
+            {
+                var blockProps = root;
+                if (!double.IsNaN(bp.FontSize)) blockProps = blockProps with { FontSize = bp.FontSize };
+                if (bp.FontWeight.Weight != FontWeights.Normal.Weight) blockProps = blockProps with { FontWeight = bp.FontWeight };
+                if (bp.FontFamily is not null) blockProps = blockProps with { FontFamily = bp.FontFamily };
+                if (bp.Foreground is not null) blockProps = blockProps with { Foreground = bp.Foreground };
+                FlattenInlines(bp.Inlines, result, blockProps);
+            }
         }
     }
 
