@@ -1,0 +1,36 @@
+<Project Sdk="Uno.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-desktop</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <StartupObject>LeXtudio.RichText.Tests.Program</StartupObject>
+    <WinUISDKReferences>false</WinUISDKReferences>
+    <UnoSingleProject>true</UnoSingleProject>
+    <UnoFeatures>SkiaRenderer;</UnoFeatures>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateTargetPlatformAttribute>false</GenerateTargetPlatformAttribute>
+    <GenerateSupportedOSPlatformAttribute>false</GenerateSupportedOSPlatformAttribute>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnitLite" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-desktop'">
+    <ProjectReference Include="..\LeXtudio.RichText\LeXtudio.RichText.csproj" SetTargetFramework="TargetFramework=net10.0-desktop" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="AssemblySetup.cs" />
+    <Compile Include="TestBase.cs" />
+    <Compile Include="Documents\InlineTests.cs" />
+    <Compile Include="Controls\InlineCodeRenderingTests.cs" />
+  </ItemGroup>
+</Project>

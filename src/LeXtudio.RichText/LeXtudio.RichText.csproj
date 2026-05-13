@@ -23,10 +23,14 @@
     <IsPackable>true</IsPackable>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <UseNuGetPackage>true</UseNuGetPackage>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(UseNuGetPackage)' == 'true'">
     <PackageReference Include="Pretext.Uno" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseNuGetPackage)' != 'true'">
+    <ProjectReference Include="..\..\ext\PretextSharp\src\Pretext.Uno\Pretext.Uno.csproj" />
   </ItemGroup>
 
   <ItemGroup>

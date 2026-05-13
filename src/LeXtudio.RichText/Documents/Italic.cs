@@ -6,6 +6,6 @@ public class Italic : Span
 {
     public Italic()
     {
-        FontStyle = FontStyle.Italic;
+        FontStyle = Windows.UI.Text.FontStyle.Italic;
     }
 }

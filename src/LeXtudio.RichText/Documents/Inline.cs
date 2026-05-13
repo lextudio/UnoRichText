@@ -10,9 +10,9 @@ public abstract class Inline
 
     public double FontSize { get; set; } = double.NaN;
 
-    public FontWeight FontWeight { get; set; } = FontWeights.Normal;
+    public FontWeight? FontWeight { get; set; }
 
-    public FontStyle FontStyle { get; set; } = FontStyle.Normal;
+    public FontStyle? FontStyle { get; set; }
 
     public Brush? Foreground { get; set; }
 

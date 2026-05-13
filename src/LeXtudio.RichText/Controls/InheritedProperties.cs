@@ -17,8 +17,8 @@ internal record InheritedProperties(
     {
         FontFamily      = inline.FontFamily ?? FontFamily,
         FontSize        = double.IsNaN(inline.FontSize) ? FontSize : inline.FontSize,
-        FontWeight      = inline.FontWeight,
-        FontStyle       = inline.FontStyle,
+        FontWeight      = inline.FontWeight ?? FontWeight,
+        FontStyle       = inline.FontStyle ?? FontStyle,
         Foreground      = inline.Foreground ?? Foreground,
         TextDecorations = inline.TextDecorations | TextDecorations,
     };

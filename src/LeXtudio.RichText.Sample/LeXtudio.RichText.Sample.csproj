@@ -1,0 +1,21 @@
+<Project Sdk="Uno.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-desktop</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>LeXtudio.RichText.Sample</RootNamespace>
+    <WinUISDKReferences>false</WinUISDKReferences>
+    <UnoSingleProject>true</UnoSingleProject>
+    <ApplicationTitle>LeXtudio.RichText.Sample</ApplicationTitle>
+    <ApplicationId>com.lextudio.richtextsample</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationPublisher>LeXtudio</ApplicationPublisher>
+    <UnoFeatures>SkiaRenderer;</UnoFeatures>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LeXtudio.RichText\LeXtudio.RichText.csproj" />
+  </ItemGroup>
+</Project>

@@ -288,6 +288,5 @@ All method bodies use `Xaml*` aliases — no scattered `#if` inside logic.
 
 ## Open Items / Future Work
 
-- [ ] **`Blocks` / `Paragraph` API**: Multi-paragraph `RichTextBlock` (needed for full WinUI parity). Not required for current WinUI.Markdown usage.
-- [ ] **Text selection**: `IsTextSelectionEnabled`, `SelectedText` — deferred.
+- [x] **Text selection**: `IsTextSelectionEnabled`, `SelectedText`, `SelectAll()`, `ClearSelection()`. Pointer drag-select, Ctrl+A, Ctrl+C implemented.
 - [ ] **Performance**: Cache `PreparedRichInline` across layout passes when content hasn't changed (use a dirty flag set by `InlineCollection.CollectionChanged`).
