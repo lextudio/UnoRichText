@@ -238,6 +238,10 @@ public class RichTextBlock : Panel
             totalHeight += stats.LineCount * ResolvedLineHeight;
             maxLineWidth = Math.Max(maxLineWidth, stats.MaxLineWidth);
         }
+        // UiContainerItems taller than one text line need extra vertical space.
+        foreach (var item in flatItems.OfType<UiContainerItem>())
+            if (item.MeasuredHeight > ResolvedLineHeight)
+                totalHeight += item.MeasuredHeight - ResolvedLineHeight;
         _totalHeight = totalHeight;
 
         var desired = new Size(Math.Min(maxLineWidth, availableSize.Width), _totalHeight);
@@ -257,7 +261,7 @@ public class RichTextBlock : Panel
         }
 
         double maxWidth = finalSize.Width > 0 ? finalSize.Width : 9999;
-        int lineIndex = 0;
+        double currentY = 0;
         var selMin = Math.Min(_selectionAnchor, _selectionFocus);
         var selMax = Math.Max(_selectionAnchor, _selectionFocus);
         var hasSelection = IsTextSelectionEnabled && _selectionAnchor >= 0 && _selectionFocus >= 0
@@ -271,7 +275,8 @@ public class RichTextBlock : Panel
             {
                 var line = PretextLayout.MaterializeRichInlineLineRange(seg.Prepared, range);
                 double x = 0;
-                double y = lineIndex * ResolvedLineHeight;
+                double y = currentY;
+                double lineHeight = ResolvedLineHeight;
 
                 foreach (var fragment in line.Fragments)
                 {
@@ -315,8 +320,9 @@ public class RichTextBlock : Panel
                     UIElement el;
                     if (flatItem is UiContainerItem uiItem)
                     {
-                        fragmentWidth = fragment.OccupiedWidth;
-                        DiagLog($"Placing UiContainer @ ({x:F1},{y:F1}) w={fragmentWidth:F1}");
+                        fragmentWidth = uiItem.MeasuredWidth > 0 ? uiItem.MeasuredWidth : fragment.OccupiedWidth;
+                        lineHeight = Math.Max(lineHeight, uiItem.MeasuredHeight);
+                        DiagLog($"Placing UiContainer @ ({x:F1},{y:F1}) w={fragmentWidth:F1} h={uiItem.MeasuredHeight:F1}");
                         el = uiItem.Child;
                     }
                     else
@@ -370,11 +376,11 @@ public class RichTextBlock : Panel
                     x += fragmentWidth;
                 }
 
-                lineIndex++;
+                currentY += lineHeight;
             });
         }
 
-        _totalHeight = lineIndex * ResolvedLineHeight;
+        _totalHeight = currentY;
         _canvas.Width = finalSize.Width;
         _canvas.Height = _totalHeight;
         _canvas.Arrange(new Rect(0, 0, finalSize.Width, _totalHeight));
@@ -707,7 +713,7 @@ public class RichTextBlock : Panel
         {
             if (i > 0)
                 result.Add(new TextRunItem("\n", root));
-            FlattenInlines(_blocks[i].Inlines, result, root);
+            if (_blocks[i] is Paragraph bp) FlattenInlines(bp.Inlines, result, root);
         }
     }
 
@@ -725,8 +731,8 @@ public class RichTextBlock : Panel
     {
         if (e.NewItems is not null)
         {
-            foreach (Paragraph p in e.NewItems)
-                p.Inlines.CollectionChanged += OnContentChanged;
+            foreach (var item in e.NewItems)
+                if (item is Paragraph p) p.Inlines.CollectionChanged += OnContentChanged;
         }
         InvalidateMeasure();
     }
