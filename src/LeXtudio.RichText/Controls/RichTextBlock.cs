@@ -15,7 +15,7 @@ using Windows.UI;
 using Windows.UI.Core;
 using Windows.UI.Text;
 using Pretext;
-using LeXtudio.UI.Xaml.Documents;
+using System.Windows.Documents;
 
 namespace LeXtudio.UI.Xaml.Controls;
 
@@ -27,15 +27,17 @@ public class RichTextBlock : Panel
     private static InputCursor? _textSelectionCursor;
     private static InputCursor TextSelectionCursor =>
         _textSelectionCursor ??= InputSystemCursor.Create(InputSystemCursorShape.IBeam);
+    private static InputCursor? _hyperlinkCursor;
+    private static InputCursor HyperlinkCursor =>
+        _hyperlinkCursor ??= InputSystemCursor.Create(InputSystemCursorShape.Hand);
 
     // All live RichTextBlock instances — used to clear other blocks' selections on pointer press.
     private static readonly List<WeakReference<RichTextBlock>> AllInstances = new();
-    private static RichTextBlock? _selectionAnchorBlock;
-    private static RichTextBlock? _selectionFocusBlock;
+    private static readonly System.Windows.DependencyObject WpfCollectionOwner = new();
 
     private readonly Canvas _canvas = new();
-    private readonly InlineCollection _inlines = new();
-    private readonly BlockCollection _blocks = new();
+    private readonly InlineCollection _inlines;
+    private readonly BlockCollection _blocks;
     private readonly FocusSink _focusSink = new();
 
     private FlatItem[]? _flatItems;
@@ -53,6 +55,8 @@ public class RichTextBlock : Panel
     {
         VerticalAlignment = VerticalAlignment.Top;
         HorizontalAlignment = HorizontalAlignment.Stretch;
+        _inlines = new InlineCollection(WpfCollectionOwner, true);
+        _blocks = new BlockCollection(WpfCollectionOwner, true);
 
         lock (AllInstances)
         {
@@ -64,9 +68,9 @@ public class RichTextBlock : Panel
         Children.Add(_focusSink);
         _inlines.CollectionChanged += OnContentChanged;
         _blocks.CollectionChanged += OnBlocksChanged;
-        PointerPressed += OnPointerPressed;
-        PointerMoved += OnPointerMoved;
-        PointerReleased += OnPointerReleased;
+        AddHandler(PointerPressedEvent, new PointerEventHandler(OnPointerPressed), true);
+        AddHandler(PointerMovedEvent, new PointerEventHandler(OnPointerMoved), true);
+        AddHandler(PointerReleasedEvent, new PointerEventHandler(OnPointerReleased), true);
         _focusSink.KeyDown += OnKeyDown;
         UpdateSelectionCursor();
     }
@@ -287,6 +291,8 @@ public class RichTextBlock : Panel
                 double y = currentY;
                 double lineHeight = ResolvedLineHeight;
 
+                var lineFragments = new List<PendingPlacedFragment>();
+
                 foreach (var fragment in line.Fragments)
                 {
                     x += fragment.GapBefore;
@@ -302,7 +308,7 @@ public class RichTextBlock : Panel
                         var itemBase = flatIndex < _flatItemCharOffsets.Length
                             ? _flatItemCharOffsets[flatIndex] : 0;
                         fragCharStart = itemBase;
-                        fragCharEnd = itemBase + 1;
+                        fragCharEnd = itemBase;
                         fragText = "￼";
                     }
                     else if (flatItem is TextRunItem)
@@ -337,7 +343,7 @@ public class RichTextBlock : Panel
                     else
                     {
                         var textItem = (TextRunItem)flatItem;
-                        var tb = new TextBlock
+                        var tb = new Microsoft.UI.Xaml.Controls.TextBlock
                         {
                             Text = fragment.Text,
                             FontFamily = textItem.Props.FontFamily,
@@ -352,39 +358,53 @@ public class RichTextBlock : Panel
                         if (tb.DesiredSize.Height > 0)
                             lineHeight = Math.Max(lineHeight, tb.DesiredSize.Height);
                         if (textItem.Hyperlink is { } link)
+                        {
+                            tb.PointerEntered += (_, _) => ProtectedCursor = HyperlinkCursor;
+                            tb.PointerExited += (_, _) => UpdateSelectionCursor();
                             tb.Tapped += (_, _) => OnHyperlinkTapped(link);
+                        }
                         el = tb;
                     }
 
-                    _placedFragments.Add(new PlacedFragment(
-                        x, y, fragmentWidth, ResolvedLineHeight,
+                    lineFragments.Add(new PendingPlacedFragment(
+                        el, flatItem, x, y, fragmentWidth,
                         fragCharStart, fragCharEnd, fragText));
+                    x += fragmentWidth;
+                }
+
+                foreach (var placed in lineFragments)
+                {
+                    _placedFragments.Add(new PlacedFragment(
+                        placed.X, placed.Y, placed.Width, lineHeight,
+                        placed.CharStart, placed.CharEnd, placed.Text));
 
                     // Selection highlight behind the fragment.
-                    if (hasSelection && fragCharEnd > fragCharStart && fragCharEnd > selMin && fragCharStart < selMax)
+                    if (hasSelection
+                        && placed.CharEnd > placed.CharStart
+                        && placed.CharEnd > selMin
+                        && placed.CharStart < selMax)
                     {
-                        var len = fragCharEnd - fragCharStart;
-                        var t0 = (double)(Math.Max(selMin, fragCharStart) - fragCharStart) / len;
-                        var t1 = (double)(Math.Min(selMax, fragCharEnd) - fragCharStart) / len;
+                        var len = placed.CharEnd - placed.CharStart;
+                        var t0 = (double)(Math.Max(selMin, placed.CharStart) - placed.CharStart) / len;
+                        var t1 = (double)(Math.Min(selMax, placed.CharEnd) - placed.CharStart) / len;
                         var highlight = new Rectangle
                         {
-                            Width = (t1 - t0) * fragmentWidth,
-                            Height = ResolvedLineHeight,
+                            Width = (t1 - t0) * placed.Width,
+                            Height = lineHeight,
                             Fill = SelectionBrush
                         };
-                        Canvas.SetLeft(highlight, x + t0 * fragmentWidth);
-                        Canvas.SetTop(highlight, y);
+                        Canvas.SetLeft(highlight, placed.X + t0 * placed.Width);
+                        Canvas.SetTop(highlight, placed.Y);
                         _canvas.Children.Add(highlight);
                     }
 
-                    if (flatItem is TextRunItem textRunItem)
+                    if (placed.FlatItem is TextRunItem textRunItem)
                         DrawDecorations(textRunItem.Props.TextDecorations, textRunItem.Props.Foreground,
-                            x, y, fragmentWidth);
+                            placed.X, placed.Y, placed.Width, lineHeight);
 
-                    Canvas.SetLeft(el, x);
-                    Canvas.SetTop(el, y);
-                    _canvas.Children.Add(el);
-                    x += fragmentWidth;
+                    Canvas.SetLeft(placed.Element, placed.X);
+                    Canvas.SetTop(placed.Element, placed.Y);
+                    _canvas.Children.Add(placed.Element);
                 }
 
                 currentY += lineHeight;
@@ -399,7 +419,7 @@ public class RichTextBlock : Panel
         return new Size(finalSize.Width, _totalHeight);
     }
 
-    private void DrawDecorations(TextDecorations decorations, Brush foreground, double x, double y, double width)
+    private void DrawDecorations(TextDecorations decorations, Brush foreground, double x, double y, double width, double lineHeight)
     {
         if (decorations == TextDecorations.None) return;
 
@@ -407,14 +427,14 @@ public class RichTextBlock : Panel
         {
             var r = new Rectangle { Width = width, Height = 1, Fill = foreground };
             Canvas.SetLeft(r, x);
-            Canvas.SetTop(r, y + ResolvedLineHeight * 0.55);
+            Canvas.SetTop(r, y + lineHeight * 0.55);
             _canvas.Children.Add(r);
         }
         if ((decorations & TextDecorations.Underline) != 0)
         {
             var r = new Rectangle { Width = width, Height = 1, Fill = foreground };
             Canvas.SetLeft(r, x);
-            Canvas.SetTop(r, y + ResolvedLineHeight * 0.88);
+            Canvas.SetTop(r, y + lineHeight * 0.88);
             _canvas.Children.Add(r);
         }
     }
@@ -424,13 +444,13 @@ public class RichTextBlock : Panel
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
     {
         if (!IsTextSelectionEnabled) return;
+        if (IsNestedRichTextPointerEvent(e)) return;
+
         _focusSink.Focus(FocusState.Pointer);
         var pt = e.GetCurrentPoint(this).Position;
         var idx = HitTest(pt);
         if (idx < 0) return;
         NotifyGroupSelectionStarting();
-        _selectionAnchorBlock = this;
-        _selectionFocusBlock = this;
         _selectionAnchor = idx;
         _selectionFocus = idx;
         _isPointerDown = true;
@@ -442,8 +462,13 @@ public class RichTextBlock : Panel
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
         if (!IsTextSelectionEnabled || !_isPointerDown) return;
-        if (FindSelectionTarget(e, out var targetBlock, out var targetIndex))
-            UpdateSelectionFocus(targetBlock, targetIndex);
+        var pt = e.GetCurrentPoint(this).Position;
+        var idx = HitTest(pt, clampToContent: true);
+        if (idx >= 0)
+        {
+            _selectionFocus = idx;
+            InvalidateArrange();
+        }
         e.Handled = true;
     }
 
@@ -453,6 +478,23 @@ public class RichTextBlock : Panel
         _isPointerDown = false;
         ReleasePointerCapture(e.Pointer);
         e.Handled = true;
+    }
+
+    private bool IsNestedRichTextPointerEvent(PointerRoutedEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject source)
+            return false;
+
+        var current = source;
+        while (current is not null && !ReferenceEquals(current, this))
+        {
+            if (current is RichTextBlock)
+                return true;
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
     }
 
     private void OnKeyDown(object sender, KeyRoutedEventArgs e)
@@ -470,8 +512,6 @@ public class RichTextBlock : Panel
         else if (e.Key == VirtualKey.C)
         {
             var text = SelectedText;
-            if (_selectionAnchorBlock is not null)
-                text = BuildGroupSelectedText();
             if (!string.IsNullOrEmpty(text))
             {
                 var dp = new DataPackage();
@@ -490,20 +530,16 @@ public class RichTextBlock : Panel
         if (_flatItemCharOffsets.Length == 0)
             return -1;
 
-        var lineHeight = ResolvedLineHeight;
-        var targetLine = (int)(pt.Y / lineHeight);
-
         PlacedFragment? best = null;
         double bestDist = double.MaxValue;
 
         foreach (var frag in _placedFragments)
         {
-            if ((int)(frag.Y / lineHeight) != targetLine) continue;
-
-            double dist;
-            if (pt.X < frag.X) dist = frag.X - pt.X;
-            else if (pt.X > frag.X + frag.Width) dist = pt.X - (frag.X + frag.Width);
-            else dist = 0;
+            var dx = pt.X < frag.X ? frag.X - pt.X :
+                pt.X > frag.X + frag.Width ? pt.X - (frag.X + frag.Width) : 0;
+            var dy = pt.Y < frag.Y ? frag.Y - pt.Y :
+                pt.Y > frag.Y + frag.Height ? pt.Y - (frag.Y + frag.Height) : 0;
+            var dist = (dy * dy * 4) + (dx * dx);
 
             if (dist < bestDist) { bestDist = dist; best = frag; }
         }
@@ -513,10 +549,11 @@ public class RichTextBlock : Panel
                 ? pt.Y < 0 ? 0 : TextLength
                 : -1;
 
-        if (bestDist == 0)
+        if (pt.X >= best.X && pt.X <= best.X + best.Width
+            && pt.Y >= best.Y && pt.Y <= best.Y + best.Height)
         {
             var len = best.CharEnd - best.CharStart;
-            if (len == 0) return best.CharStart;
+            if (len == 0) return clampToContent ? best.CharStart : -1;
             var t = (pt.X - best.X) / best.Width;
             return best.CharStart + (int)Math.Round(t * len);
         }
@@ -525,97 +562,6 @@ public class RichTextBlock : Panel
     }
 
     private int TextLength => _flatItemCharOffsets.Length == 0 ? 0 : _flatItemCharOffsets[^1];
-
-    private static bool FindSelectionTarget(PointerRoutedEventArgs e, out RichTextBlock targetBlock, out int targetIndex)
-    {
-        targetBlock = _selectionFocusBlock ?? _selectionAnchorBlock ?? throw new InvalidOperationException();
-        targetIndex = targetBlock._selectionFocus;
-
-        RichTextBlock? bestBlock = null;
-        Point bestPoint = default;
-        double bestDistance = double.MaxValue;
-
-        foreach (var candidate in GetLiveBlocks())
-        {
-            if (!candidate.IsTextSelectionEnabled || candidate.TextLength == 0)
-                continue;
-
-            var pt = e.GetCurrentPoint(candidate).Position;
-            var width = candidate.ActualWidth > 0 ? candidate.ActualWidth : candidate.DesiredSize.Width;
-            var height = candidate.ActualHeight > 0 ? candidate.ActualHeight : candidate.DesiredSize.Height;
-            if (width <= 0)
-                width = double.PositiveInfinity;
-            if (height <= 0)
-                height = candidate._totalHeight;
-
-            var dx = pt.X < 0 ? -pt.X : pt.X > width ? pt.X - width : 0;
-            var dy = pt.Y < 0 ? -pt.Y : pt.Y > height ? pt.Y - height : 0;
-            var distance = (dx * dx) + (dy * dy);
-
-            if (distance < bestDistance)
-            {
-                bestDistance = distance;
-                bestBlock = candidate;
-                bestPoint = pt;
-            }
-        }
-
-        if (bestBlock is null)
-            return false;
-
-        targetBlock = bestBlock;
-        targetIndex = bestBlock.HitTest(bestPoint, clampToContent: true);
-        return targetIndex >= 0;
-    }
-
-    private static void UpdateSelectionFocus(RichTextBlock targetBlock, int targetIndex)
-    {
-        if (_selectionAnchorBlock is null)
-            return;
-
-        _selectionFocusBlock = targetBlock;
-        var blocks = GetLiveBlocks();
-        var anchorBlockIndex = blocks.IndexOf(_selectionAnchorBlock);
-        var focusBlockIndex = blocks.IndexOf(targetBlock);
-        if (anchorBlockIndex < 0 || focusBlockIndex < 0)
-            return;
-
-        var forward = anchorBlockIndex < focusBlockIndex
-            || (anchorBlockIndex == focusBlockIndex && _selectionAnchorBlock._selectionAnchor <= targetIndex);
-
-        for (var i = 0; i < blocks.Count; i++)
-        {
-            var block = blocks[i];
-            if (i < Math.Min(anchorBlockIndex, focusBlockIndex) || i > Math.Max(anchorBlockIndex, focusBlockIndex))
-            {
-                block.ClearSelectionSilent();
-                continue;
-            }
-
-            if (anchorBlockIndex == focusBlockIndex)
-            {
-                block._selectionAnchor = _selectionAnchorBlock._selectionAnchor;
-                block._selectionFocus = targetIndex;
-            }
-            else if (ReferenceEquals(block, _selectionAnchorBlock))
-            {
-                block._selectionAnchor = _selectionAnchorBlock._selectionAnchor;
-                block._selectionFocus = forward ? block.TextLength : 0;
-            }
-            else if (ReferenceEquals(block, targetBlock))
-            {
-                block._selectionAnchor = forward ? 0 : block.TextLength;
-                block._selectionFocus = targetIndex;
-            }
-            else
-            {
-                block._selectionAnchor = forward ? 0 : block.TextLength;
-                block._selectionFocus = forward ? block.TextLength : 0;
-            }
-
-            block.InvalidateArrange();
-        }
-    }
 
     private string BuildSelectedText()
     {
@@ -641,27 +587,6 @@ public class RichTextBlock : Panel
                 if (localEnd > localStart)
                     sb.Append(textItem.Text[localStart..Math.Min(localEnd, textItem.Text.Length)]);
             }
-            else
-            {
-                sb.Append('￼');
-            }
-        }
-
-        return sb.ToString();
-    }
-
-    private static string BuildGroupSelectedText()
-    {
-        var sb = new StringBuilder();
-        foreach (var block in GetLiveBlocks())
-        {
-            var text = block.BuildSelectedText();
-            if (string.IsNullOrEmpty(text))
-                continue;
-
-            if (sb.Length > 0)
-                sb.AppendLine();
-            sb.Append(text);
         }
 
         return sb.ToString();
@@ -671,8 +596,6 @@ public class RichTextBlock : Panel
 
     private void NotifyGroupSelectionStarting()
     {
-        _selectionAnchorBlock = null;
-        _selectionFocusBlock = null;
         lock (AllInstances)
         {
             foreach (var wr in AllInstances)
@@ -855,6 +778,16 @@ public class RichTextBlock : Panel
     }
 
     private record PreparedSegment(PreparedRichInline Prepared, int FlatItemOffset, RichInlineItem[] Items);
+
+    private record PendingPlacedFragment(
+        UIElement Element,
+        FlatItem FlatItem,
+        double X,
+        double Y,
+        double Width,
+        int CharStart,
+        int CharEnd,
+        string Text);
 
     private record PlacedFragment(double X, double Y, double Width, double Height,
         int CharStart, int CharEnd, string Text);

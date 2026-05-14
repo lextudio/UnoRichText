@@ -1,7 +1,8 @@
-using LeXtudio.UI.Xaml.Documents;
+using System.Windows.Documents;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
 using Windows.Foundation;
 using Windows.UI;
 using LeXtudioRTB = LeXtudio.UI.Xaml.Controls.RichTextBlock;
@@ -17,15 +18,18 @@ public sealed class DiagPage : Page
 {
     private readonly LeXtudioRTB _rtbInline;
     private readonly LeXtudioRTB _rtbMultiLine;
+    private readonly LeXtudioRTB _rtbSelection;
 
     public DiagPage()
     {
         _rtbInline = BuildInlineCodeBlock();
         _rtbMultiLine = BuildMultiLineCodeBlock();
+        _rtbSelection = BuildSelectionGeometryBlock();
 
         var panel = new StackPanel { Spacing = 8 };
         panel.Children.Add(_rtbInline);
         panel.Children.Add(_rtbMultiLine);
+        panel.Children.Add(_rtbSelection);
         Content = panel;
 
         Loaded += OnLoaded;
@@ -74,7 +78,22 @@ public sealed class DiagPage : Page
             : $"MULTILINE: FAIL — only {yValues.Count} distinct Y positions found (need ≥4)");
         Console.Out.Flush();
 
-        var allPass = hasInlineFragment && multiLinePass;
+        // ── Selection geometry test ──────────────────────────────────────
+        _rtbSelection.Measure(new Size(800, double.PositiveInfinity));
+        _rtbSelection.Arrange(new Rect(0, 0, 800,
+            _rtbSelection.DesiredSize.Height > 0 ? _rtbSelection.DesiredSize.Height : 200));
+        _rtbSelection.SelectAll();
+        _rtbSelection.Measure(new Size(800, double.PositiveInfinity));
+        _rtbSelection.Arrange(new Rect(0, 0, 800,
+            _rtbSelection.DesiredSize.Height > 0 ? _rtbSelection.DesiredSize.Height : 200));
+
+        var selectionPass = CheckSelectionGeometry(_rtbSelection, out var selectionMessage);
+        Console.WriteLine(selectionPass
+            ? $"SELECTION: PASS — {selectionMessage}"
+            : $"SELECTION: FAIL — {selectionMessage}");
+        Console.Out.Flush();
+
+        var allPass = hasInlineFragment && multiLinePass && selectionPass;
         Console.WriteLine(allPass ? "RESULT: PASS" : "RESULT: FAIL");
         Console.Out.Flush();
 
@@ -157,5 +176,64 @@ public sealed class DiagPage : Page
 
         rtb.Blocks.Add(p);
         return rtb;
+    }
+
+    private static LeXtudioRTB BuildSelectionGeometryBlock()
+    {
+        var rtb = new LeXtudioRTB
+        {
+            FontSize = 14,
+            LineHeight = 14 * 1.4
+        };
+
+        rtb.Blocks.Add(new Paragraph
+        {
+            FontSize = 32,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Inlines =
+            {
+                new Run { Text = "Large heading" }
+            }
+        });
+        rtb.Blocks.Add(new Paragraph
+        {
+            FontSize = 14,
+            Inlines =
+            {
+                new Run { Text = "Body text" }
+            }
+        });
+
+        return rtb;
+    }
+
+    private static bool CheckSelectionGeometry(LeXtudioRTB rtb, out string message)
+    {
+        var canvas = (Canvas)typeof(LeXtudioRTB)
+            .GetField("_canvas", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(rtb)!;
+
+        var selectionRects = canvas.Children.OfType<Rectangle>().ToArray();
+        var renderedText = canvas.Children.OfType<TextBlock>().ToArray();
+
+        if (selectionRects.Length != 2 || renderedText.Length != 2)
+        {
+            message = $"expected 2 selection rectangles and 2 text fragments, got {selectionRects.Length} rectangles and {renderedText.Length} text fragments";
+            return false;
+        }
+
+        var headingText = renderedText.Single(text => text.Text == "Large heading");
+        var bodyText = renderedText.Single(text => text.Text == "Body text");
+        var headingSelection = selectionRects.OrderBy(Canvas.GetTop).First();
+        var bodySelection = selectionRects.OrderBy(Canvas.GetTop).Last();
+
+        var headingPass = headingSelection.Height >= headingText.DesiredSize.Height - 0.5
+            && headingSelection.Height > rtb.LineHeight
+            && headingSelection.Height > bodySelection.Height;
+        var bodyPass = bodySelection.Height >= bodyText.DesiredSize.Height - 0.5;
+
+        message =
+            $"headingSelection={headingSelection.Height:F1}, headingText={headingText.DesiredSize.Height:F1}, bodySelection={bodySelection.Height:F1}, bodyText={bodyText.DesiredSize.Height:F1}, baseLineHeight={rtb.LineHeight:F1}";
+        return headingPass && bodyPass;
     }
 }

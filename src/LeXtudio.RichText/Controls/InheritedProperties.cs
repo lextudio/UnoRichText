@@ -1,7 +1,7 @@
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI.Text;
-using LeXtudio.UI.Xaml.Documents;
+using System.Windows.Documents;
 
 namespace LeXtudio.UI.Xaml.Controls;
 
@@ -17,10 +17,10 @@ internal record InheritedProperties(
     {
         FontFamily      = inline.FontFamily ?? FontFamily,
         FontSize        = double.IsNaN(inline.FontSize) ? FontSize : inline.FontSize,
-        FontWeight      = inline.FontWeight ?? FontWeight,
-        FontStyle       = inline.FontStyle ?? FontStyle,
+        FontWeight      = inline is Bold ? FontWeights.Bold : inline.FontWeight ?? FontWeight,
+        FontStyle       = inline is Italic ? global::Windows.UI.Text.FontStyle.Italic : inline.FontStyle ?? FontStyle,
         Foreground      = inline.Foreground ?? Foreground,
-        TextDecorations = inline.TextDecorations | TextDecorations,
+        TextDecorations = inline is Underline ? TextDecorations | global::Windows.UI.Text.TextDecorations.Underline : TextDecorations,
     };
 
     internal string ToPretextFontString()

@@ -32,5 +32,6 @@
     <Compile Include="TestBase.cs" />
     <Compile Include="Documents\InlineTests.cs" />
     <Compile Include="Controls\InlineCodeRenderingTests.cs" />
+    <Compile Include="Controls\SelectionGeometryTests.cs" />
   </ItemGroup>
 </Project>

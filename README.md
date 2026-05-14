@@ -37,15 +37,15 @@ dotnet add package LeXtudio.RichText
 | Type | Namespace |
 |------|-----------|
 | `RichTextBlock` | `LeXtudio.UI.Xaml.Controls` |
-| `Paragraph` | `LeXtudio.UI.Xaml.Documents` |
-| `InlineCollection` | `LeXtudio.UI.Xaml.Documents` |
-| `Run` | `LeXtudio.UI.Xaml.Documents` |
-| `Bold` | `LeXtudio.UI.Xaml.Documents` |
-| `Italic` | `LeXtudio.UI.Xaml.Documents` |
-| `Span` | `LeXtudio.UI.Xaml.Documents` |
-| `Hyperlink` | `LeXtudio.UI.Xaml.Documents` |
-| `LineBreak` | `LeXtudio.UI.Xaml.Documents` |
-| `InlineUIContainer` | `LeXtudio.UI.Xaml.Documents` |
+| `Paragraph` | `System.Windows.Documents` |
+| `InlineCollection` | `System.Windows.Documents` |
+| `Run` | `System.Windows.Documents` |
+| `Bold` | `System.Windows.Documents` |
+| `Italic` | `System.Windows.Documents` |
+| `Span` | `System.Windows.Documents` |
+| `Hyperlink` | `System.Windows.Documents` |
+| `LineBreak` | `System.Windows.Documents` |
+| `InlineUIContainer` | `System.Windows.Documents` |
 
 ### Usage
 
@@ -53,7 +53,7 @@ The API mirrors WinUI 3's `RichTextBlock`:
 
 ```csharp
 using LeXtudio.UI.Xaml.Controls;
-using LeXtudio.UI.Xaml.Documents;
+using System.Windows.Documents;
 
 var block = new RichTextBlock
 {
@@ -74,15 +74,15 @@ If you have existing WinUI 3 code that uses the native `RichTextBlock` and relat
 ```csharp
 #if !WINDOWS_APP_SDK
 global using RichTextBlock     = LeXtudio.UI.Xaml.Controls.RichTextBlock;
-global using InlineCollection  = LeXtudio.UI.Xaml.Documents.InlineCollection;
-global using Paragraph         = LeXtudio.UI.Xaml.Documents.Paragraph;
-global using Run               = LeXtudio.UI.Xaml.Documents.Run;
-global using Bold              = LeXtudio.UI.Xaml.Documents.Bold;
-global using Italic            = LeXtudio.UI.Xaml.Documents.Italic;
-global using Span              = LeXtudio.UI.Xaml.Documents.Span;
-global using LineBreak         = LeXtudio.UI.Xaml.Documents.LineBreak;
-global using InlineUIContainer = LeXtudio.UI.Xaml.Documents.InlineUIContainer;
-global using Hyperlink         = LeXtudio.UI.Xaml.Documents.Hyperlink;
+global using InlineCollection  = System.Windows.Documents.InlineCollection;
+global using Paragraph         = System.Windows.Documents.Paragraph;
+global using Run               = System.Windows.Documents.Run;
+global using Bold              = System.Windows.Documents.Bold;
+global using Italic            = System.Windows.Documents.Italic;
+global using Span              = System.Windows.Documents.Span;
+global using LineBreak         = System.Windows.Documents.LineBreak;
+global using InlineUIContainer = System.Windows.Documents.InlineUIContainer;
+global using Hyperlink         = System.Windows.Documents.Hyperlink;
 #endif
 ```
 

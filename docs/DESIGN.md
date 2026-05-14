@@ -2,291 +2,195 @@
 
 ## Problem
 
-Uno Platform does not properly implement the WinUI document model needed for rich inline text layout:
+Uno Platform does not fully implement the WinUI/WPF document stack needed by native markdown rendering, especially around `RichTextBlock` and embedded inline elements. This causes fidelity and interaction gaps (layout, inline UI, text selection consistency).
 
-| WinUI Type | Uno Status |
-|---|---|
-| `RichTextBlock` | Only `Blocks` implemented; no styling properties (FontFamily, Foreground, TextWrapping, etc.) |
-| `InlineUIContainer` | Not implemented at all |
-| `TextBlock.Inlines` | Functional for Run/Bold/Italic/Span/Hyperlink/LineBreak |
+## Strategic Direction (New)
 
-The result: markdown rendered natively on Uno is missing inline code boxes, images, and all paragraph text inside nested containers (lists, tables, blockquotes, code blocks).
+LeXtudio.RichText should be **WPF-source-first**:
 
-## Goal
+1. Reuse Microsoft open-source WPF document model code from  
+   `C:\Users\lextudio\source\repos\uno-tools\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents`.
+2. Keep Microsoft logic in shared `.cs` files whenever possible.
+3. Isolate platform-specific parts into partial files:
+   - `*.wpf.cs` for WPF-specific glue.
+   - `*.uno.cs` for Uno-specific glue.
+4. Avoid re-inventing document semantics when upstream Microsoft behavior already exists.
 
-Provide a drop-in rich text library for Uno that:
+This is the default approach unless a type is tightly coupled to WPF internals that cannot be ported safely.
 
-1. Mirrors the WinUI/WPF `Microsoft.UI.Xaml.Documents` and `Microsoft.UI.Xaml.Controls` API surface exactly (same type names, same property names).
-2. Implements `InlineUIContainer` — the key missing piece — so UIElements (styled code boxes, images) can be embedded in inline text flows.
-3. Implements `RichTextBlock` backed by **PretextSharp** for proper inline layout with text measurement.
-4. Targets `net10.0-desktop` (Uno Skia). Windows (`net10.0-windows`) consumers continue using native WinUI types via `#if WINDOWS_APP_SDK`.
+## Why This Approach Is Right
 
-## Namespace Alignment
+1. Behavior parity: We align with mature Microsoft semantics for document object model behavior.
+2. Lower drift: We reduce long-term divergence between our model and upstream expectations.
+3. Faster maintenance: Bug fixes become targeted adaptation fixes instead of full reimplementation.
+4. Better confidence: More predictable interoperability with markdown pipelines that assume WinUI/WPF-like behavior.
 
-```
-LeXtudio.UI.Xaml.Documents   ↔   Microsoft.UI.Xaml.Documents
-LeXtudio.UI.Xaml.Controls    ↔   Microsoft.UI.Xaml.Controls
-```
+## Scope Split
 
-Type names are identical to their WinUI counterparts so consumers can switch with a using alias:
+### Reuse-first layer (`Documents`)
 
-```csharp
-#if WINDOWS_APP_SDK
-using Inlines = Microsoft.UI.Xaml.Documents.InlineCollection;
-// ...
-#else
-using Inlines = LeXtudio.UI.Xaml.Documents.InlineCollection;
-// ...
-#endif
-```
+`Inline`, `Run`, `Span`, `Bold`, `Italic`, `LineBreak`, `Hyperlink`, collections, and related document tree behavior should prefer shared Microsoft-derived logic.
 
-## Project Structure
+### Uno-only layer (`Controls`)
 
-```
-LeXtudio.RichText/
-  ext/
-    PretextSharp/               ← git submodule
-  src/
-    LeXtudio.RichText/
-      LeXtudio.RichText.csproj  ← net10.0-desktop, refs Pretext.Uno
-      Documents/
-        Inline.cs               ← abstract base; common formatting properties
-        InlineCollection.cs     ← ObservableCollection<Inline>
-        Run.cs                  ← leaf text node
-        Span.cs                 ← container for child inlines
-        Bold.cs                 ← Span, FontWeight = Bold
-        Italic.cs               ← Span, FontStyle = Italic
-        LineBreak.cs            ← hard line break
-        InlineUIContainer.cs    ← embeds any UIElement in the flow
-        Hyperlink.cs            ← Span + Click event
-      Controls/
-        RichTextBlock.cs        ← Panel-derived control; PretextSharp layout
-        InheritedProperties.cs  ← internal helper for property cascading
-  docs/
-    DESIGN.md                   ← this file
-```
+`RichTextBlock` remains Uno-specific for rendering and interaction because it depends on:
+- PretextSharp line layout and measurement.
+- Uno visual tree and pointer behavior.
+- Existing LeXtudio selection rendering pipeline.
 
-## Document Model
+The control can still consume reused document-model types.
 
-### `Inline` (abstract)
+## File Strategy
 
-Common formatting properties. All are nullable/NaN so that child values inherit from parent `Span` or from the owning `RichTextBlock`:
+For each candidate type:
 
-```csharp
-public abstract class Inline
-{
-    public FontFamily? FontFamily { get; set; }
-    public double FontSize { get; set; } = double.NaN;      // NaN = inherit
-    public FontWeight FontWeight { get; set; } = FontWeights.Normal;
-    public FontStyle FontStyle { get; set; } = FontStyle.Normal;
-    public Brush? Foreground { get; set; }                   // null = inherit
-    public TextDecorations TextDecorations { get; set; } = TextDecorations.None;
-}
-```
+1. Create a shared core file, example: `Span.cs`.
+2. Move platform-dependent code to partials:
+   - `Span.wpf.cs`
+   - `Span.uno.cs`
+3. Keep shared file free of WPF-only APIs where possible.
+4. Keep Uno-specific API bridging in `.uno.cs` only.
 
-### `Run : Inline`
+### Naming Rules
 
-```csharp
-public class Run : Inline
-{
-    public string Text { get; set; } = string.Empty;
-}
-```
+- Shared logic file: `TypeName.cs`
+- WPF adaptation: `TypeName.wpf.cs`
+- Uno adaptation: `TypeName.uno.cs`
+- Internal helper split uses same suffix rule.
 
-### `Span : Inline`
+## Project Configuration Rules
 
-```csharp
-public class Span : Inline
-{
-    public InlineCollection Inlines { get; } = new();
-}
-```
+1. UnoRichText project compiles:
+   - shared files (`*.cs`)
+   - Uno partials (`*.uno.cs`)
+2. WPF partials (`*.wpf.cs`) stay excluded from Uno build.
+3. WPF upstream files are added as **linked non-compiling artifacts** under project logical path `UpstreamWpf/Documents/*`.
+4. Linked upstream files are source-of-truth for audits and diffs; Uno compile path remains local shared + `.uno.cs` partials.
+5. If we vendor Microsoft source files directly, keep original headers and clear provenance comments.
+6. Prefer linked/shared files over copy-paste to reduce drift.
 
-### `Bold : Span`
+## Linked-File Policy
 
-Constructor sets `FontWeight = FontWeights.Bold`.
+1. For each mapped type, maintain a linked upstream file in project view (`UpstreamWpf/Documents/*`).
+2. Do not edit linked upstream files in UnoRichText.
+3. Local shared file (`Type.cs`) should remain minimal and platform-neutral.
+4. Uno behavior/adaptation must be implemented in `Type.uno.cs`.
+5. When upstream changes, update the `wpf` submodule/revision and review diffs against linked files before adapting local partials.
 
-### `Italic : Span`
+## Provenance and Compliance
 
-Constructor sets `FontStyle = FontStyle.Italic`.
+Each Microsoft-derived shared file should include:
 
-### `LineBreak : Inline`
+- Source path in WPF repo.
+- Upstream commit hash used for import.
+- Notes on local edits (if any).
 
-No extra members. Signals a hard line break in the flow.
+Maintain a small manifest (future `docs/SOURCE-MAP.md`) listing:
+- local file
+- upstream file
+- import revision
+- adaptation status
 
-### `InlineUIContainer : Inline`
+## Adaptation Guidelines
 
-```csharp
-public class InlineUIContainer : Inline
-{
-    public UIElement? Child { get; set; }
-}
-```
+1. Do not alter upstream logic in shared files unless required.
+2. If behavior must differ for Uno, implement it in `.uno.cs`.
+3. Keep adaptation seams narrow and explicit.
+4. Prefer composition/partial overrides over invasive rewrites.
 
-The `Child` is measured before PretextSharp layout runs. Its `DesiredSize.Width` becomes the `ExtraWidth` on the corresponding `RichInlineItem`.
+## Selection and Interaction Model
 
-### `Hyperlink : Span`
+Current selection behavior in `LeXtudio.UI.Xaml.Controls.RichTextBlock` remains the interaction authority for Uno.
 
-```csharp
-public class Hyperlink : Span
-{
-    public Brush? Foreground { get; set; }
-    public event EventHandler? Click;
-    internal void RaiseClick() => Click?.Invoke(this, EventArgs.Empty);
-}
-```
+Design constraints:
 
-Rendered as underlined text in `Foreground` (or inherited color). Fragment `TextBlock` gets a `Tapped` handler that calls `RaiseClick()`.
+1. Document model parity comes from reused Microsoft code.
+2. Rendering and pointer handling remain Uno control responsibilities.
+3. Hyperlink hit testing/cursor/selection behavior should be implemented in Uno control layer, not forced into shared document core.
 
-### `InlineCollection`
+## Migration Plan
 
-```csharp
-public class InlineCollection : ObservableCollection<Inline> { }
-```
+### Phase 1: Baseline inventory
 
-Changes raise `CollectionChanged`, which `RichTextBlock` listens to in order to call `InvalidateMeasure()`.
+1. Map current `LeXtudio.RichText/Documents/*` files to WPF counterparts.
+2. Classify each type:
+   - `Direct-share`
+   - `Share-with-partials`
+   - `Uno-only`
 
-## `RichTextBlock` Control
+### Phase 2: Shared core extraction
 
-### Base class
+1. Introduce shared core files for highest-value types first:
+   - `Inline`
+   - `Run`
+   - `Span`
+   - `Hyperlink`
+   - inline collections
+2. Add `.uno.cs` shims for namespace/type-system adaptation.
 
-Extends `Panel`. A single `Canvas _canvas` lives in `Panel.Children`; all fragment `TextBlock`s and `UIElement`s are added to `_canvas.Children`. This avoids circular measure invalidation: changes to `_canvas.Children` do not propagate `InvalidateMeasure()` to the parent `Panel`.
+### Phase 3: Behavior validation
 
-### Public API (mirrors WinUI `RichTextBlock`)
+1. Expand tests to verify parity-critical semantics.
+2. Keep existing selection diagnostics and markdown rendering checks.
+3. Add regressions for hyperlink and list-item interaction.
 
-```csharp
-public class RichTextBlock : Panel
-{
-    public InlineCollection Inlines { get; }
-    public FontFamily FontFamily { get; set; }
-    public double FontSize { get; set; }
-    public FontWeight FontWeight { get; set; }
-    public Brush Foreground { get; set; }
-    public TextWrapping TextWrapping { get; set; }
-    public double LineHeight { get; set; }   // 0 = auto (FontSize * 1.4)
-    public event EventHandler<HyperlinkClickEventArgs>? LinkClicked;
-}
-```
+### Phase 4: Ongoing sync
 
-### Layout Pipeline
+1. Periodically sync upstream WPF changes for mapped files.
+2. Update provenance manifest.
+3. Keep local divergence documented and minimal.
 
-```
-Inlines changed
-  └── InvalidateMeasure()
+### Phase 5: Full Namespace Onboarding (223 files)
 
-MeasureOverride(availableSize)
-  1. FlattenInlines()           → List<FlatItem>
-  2. Measure UIElement children (InlineUIContainer.Child) directly (no parent needed)
-  3. BuildRichInlineItems()     → RichInlineItem[] for PretextSharp
-       • Text run       → RichInlineItem(text, fontString, Break=Normal, ExtraWidth=0)
-       • UI container   → RichInlineItem("", fontString, Break=Never, ExtraWidth=child.DesiredSize.Width)
-       • LineBreak      → RichInlineItem("\n", fontString)
-  4. PretextLayout.PrepareRichInline(items) → _prepared
-  5. PretextLayout.MeasureRichInlineStats(_prepared, maxWidth) → stats
-  Return Size(stats.MaxLineWidth, stats.LineCount * ResolvedLineHeight)
+This is the execution path to bring the entire `System.Windows.Documents` namespace under the same linked/split policy without destabilizing Uno builds.
 
-ArrangeOverride(finalSize)
-  1. _canvas.Children.Clear()
-  2. PretextLayout.WalkRichInlineLineRanges(_prepared, finalSize.Width, range =>
-       line = MaterializeRichInlineLineRange(prepared, range)
-       x = 0; y = lineIndex * ResolvedLineHeight
-       for each fragment in line.Fragments:
-         x += fragment.GapBefore
-         if flatItems[fragment.ItemIndex] is UIContainerItem → position child UIElement
-         else → create TextBlock with fragment.Text and inherited props
-         Canvas.SetLeft(el, x); Canvas.SetTop(el, y)
-         _canvas.Children.Add(el)
-         x += fragment.OccupiedWidth
-       lineIndex++
-     )
-  3. _canvas.Width = finalSize.Width; _canvas.Height = lineCount * ResolvedLineHeight
-  4. _canvas.Arrange(new Rect(0, 0, finalSize.Width, totalHeight))
-  Return Size(finalSize.Width, totalHeight)
-```
+1. Bootstrap metadata and links:
+   - Run `tools/bootstrap-documents-migration.ps1` to:
+     - append placeholder backlog rows for all missing document files in `SOURCE-MAP.md`.
+     - append placeholder provenance rows in `PROVENANCE.md`.
+     - add all missing `UpstreamWpf/Documents/*.cs` links to `LeXtudio.RichText.csproj` as non-compiling `None`.
+2. Keep compile scope narrow:
+   - Do **not** compile newly linked WPF files directly in Uno.
+   - Continue compiling only local shared files + `*.uno.cs` partials.
+3. Migrate by dependency rings:
+   - Ring A: core DOM/value types (`TextElement`, `Section`, `List`, `ListItem`, `Table*` public shells).
+   - Ring B: collections and editing-neutral helpers.
+   - Ring C: text editing engine (`TextEditor*`, `TextRange*`, tree internals) only when Uno feature scope needs them.
+4. For each migrated type:
+   - create `Type.cs` shared shell (Microsoft-aligned).
+   - move Uno behavior to `Type.uno.cs`.
+   - update row status in `SOURCE-MAP.md` and `PROVENANCE.md`.
+5. Gate every slice:
+   - `dotnet build src/LeXtudio.RichText/LeXtudio.RichText.csproj -c Debug`
+   - `dotnet test src/LeXtudio.RichText.Tests/LeXtudio.RichText.Tests.csproj -c Debug`
+   - `pwsh tools/verify-documents-parity.ps1 -Mode core` (must pass)
+   - `pwsh tools/verify-documents-parity.ps1 -Mode full` (progressively trends to pass)
 
-### Property Inheritance During Flatten
+## Testing Expectations
 
-`FlattenInlines` carries an `InheritedProperties` context through the inline tree:
+1. Keep `LeXtudio.RichText.Tests` green.
+2. Add source-parity tests where behavior can be asserted without WPF runtime.
+3. Keep sample diagnostic mode (`--diag`) as quick integration gate.
+4. Add tests for:
+   - link cursor/hit behavior
+   - list item selection routing
+   - code block selection behavior
 
-```csharp
-internal record InheritedProperties(
-    FontFamily FontFamily, double FontSize,
-    FontWeight FontWeight, FontStyle FontStyle,
-    Brush Foreground, TextDecorations TextDecorations)
-{
-    internal InheritedProperties Merge(Inline inline) => this with
-    {
-        FontFamily      = inline.FontFamily ?? FontFamily,
-        FontSize        = double.IsNaN(inline.FontSize) ? FontSize : inline.FontSize,
-        FontWeight      = inline.FontWeight,
-        FontStyle       = inline.FontStyle,
-        Foreground      = inline.Foreground ?? Foreground,
-        TextDecorations = inline.TextDecorations | TextDecorations,
-    };
-}
-```
+## Risks and Mitigations
 
-### PretextSharp Font String
+1. Risk: Hidden WPF dependencies in reused files.
+   Mitigation: split with partials early; avoid deep transitive imports.
+2. Risk: Over-coupling to WPF naming internals.
+   Mitigation: adapt only at boundary files and retain clear Uno facades.
+3. Risk: Upstream drift.
+   Mitigation: provenance manifest + scheduled sync checks.
 
-Converts `InheritedProperties` → CSS font shorthand:
+## Decision
 
-```
-"[italic ][<weight> ]<size>px <family>"
+Yes, your proposed approach is the right one for this repo:
 
-Examples:
-  "14px Segoe UI"
-  "bold 14px Segoe UI"
-  "italic 500 14px Courier New"
-```
+- Reuse original Microsoft files where feasible.
+- Split into shared `.cs` plus platform partials (`.wpf.cs`, `.uno.cs`) when needed.
+- Keep Uno-specific rendering/interaction in Uno control files.
 
-Weight mapping: 700+ → "bold", other non-400 → numeric string, 400 → omitted.
-
-### `ResolvedLineHeight`
-
-```csharp
-private double ResolvedLineHeight =>
-    LineHeight > 0 ? LineHeight : FontSize * 1.4;
-```
-
-## Integration with WinUI.Markdown
-
-`NativeMarkdownVisitor` uses compile-time aliases at the top of the file:
-
-```csharp
-#if WINDOWS_APP_SDK
-using RichTextBlock     = Microsoft.UI.Xaml.Controls.RichTextBlock;
-using InlineCollection  = Microsoft.UI.Xaml.Documents.InlineCollection;
-using Run               = Microsoft.UI.Xaml.Documents.Run;
-using Bold              = Microsoft.UI.Xaml.Documents.Bold;
-using Italic            = Microsoft.UI.Xaml.Documents.Italic;
-using Span              = Microsoft.UI.Xaml.Documents.Span;
-using LineBreak         = Microsoft.UI.Xaml.Documents.LineBreak;
-using InlineUIContainer = Microsoft.UI.Xaml.Documents.InlineUIContainer;
-using Hyperlink         = Microsoft.UI.Xaml.Documents.Hyperlink;
-#else
-using RichTextBlock     = LeXtudio.UI.Xaml.Controls.RichTextBlock;
-using InlineCollection  = LeXtudio.UI.Xaml.Documents.InlineCollection;
-using Run               = LeXtudio.UI.Xaml.Documents.Run;
-using Bold              = LeXtudio.UI.Xaml.Documents.Bold;
-using Italic            = LeXtudio.UI.Xaml.Documents.Italic;
-using Span              = LeXtudio.UI.Xaml.Documents.Span;
-using LineBreak         = LeXtudio.UI.Xaml.Documents.LineBreak;
-using InlineUIContainer = LeXtudio.UI.Xaml.Documents.InlineUIContainer;
-using Hyperlink         = LeXtudio.UI.Xaml.Documents.Hyperlink;
-#endif
-```
-
-All method bodies use `Xaml*` aliases — no scattered `#if` inside logic.
-
-`WinUI.Markdown.csproj` adds the project reference conditionally:
-
-```xml
-<ItemGroup Condition="'$(TargetFramework)' != 'net10.0-windows10.0.19041.0'">
-  <ProjectReference Include="..\..\..\..\LeXtudio.RichText\src\LeXtudio.RichText\LeXtudio.RichText.csproj" />
-</ItemGroup>
-```
-
-## Open Items / Future Work
-
-- [x] **Text selection**: `IsTextSelectionEnabled`, `SelectedText`, `SelectAll()`, `ClearSelection()`. Pointer drag-select, Ctrl+A, Ctrl+C implemented.
-- [ ] **Performance**: Cache `PreparedRichInline` across layout passes when content hasn't changed (use a dirty flag set by `InlineCollection.CollectionChanged`).
+This gives us better parity and better long-term maintainability than continued full custom reimplementation.

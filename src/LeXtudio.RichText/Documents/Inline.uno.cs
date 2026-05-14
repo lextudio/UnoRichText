@@ -2,9 +2,9 @@ using Microsoft.UI.Text;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI.Text;
 
-namespace LeXtudio.UI.Xaml.Documents;
+namespace System.Windows.Documents;
 
-public abstract class Inline
+public abstract partial class Inline
 {
     public FontFamily? FontFamily { get; set; }
 
@@ -15,6 +15,4 @@ public abstract class Inline
     public FontStyle? FontStyle { get; set; }
 
     public Brush? Foreground { get; set; }
-
-    public TextDecorations TextDecorations { get; set; } = TextDecorations.None;
 }

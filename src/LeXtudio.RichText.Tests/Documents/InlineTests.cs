@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using LeXtudio.UI.Xaml.Documents;
+using System.Windows.Documents;
 using Microsoft.UI.Text;
 using NUnit.Framework;
 using Windows.UI.Text;
@@ -45,6 +45,17 @@ public sealed class InlineTests
 
         Assert.That(span.Inlines, Has.Count.EqualTo(1));
         Assert.That(span.Inlines[0], Is.SameAs(run));
+    }
+
+    [Test]
+    public void Run_StringConstructorPreservesText()
+    {
+        if (RunInStandaloneWinUIProcessIfNeeded())
+            return;
+
+        var run = new Run("hello");
+
+        Assert.That(run.Text, Is.EqualTo("hello"));
     }
 
     static bool RunInStandaloneWinUIProcessIfNeeded()

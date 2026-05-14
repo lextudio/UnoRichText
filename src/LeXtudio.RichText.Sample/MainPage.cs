@@ -1,4 +1,4 @@
-using LeXtudio.UI.Xaml.Documents;
+using System.Windows.Documents;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
