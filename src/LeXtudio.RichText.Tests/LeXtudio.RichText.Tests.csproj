@@ -30,6 +30,8 @@
     <Compile Include="Program.cs" />
     <Compile Include="AssemblySetup.cs" />
     <Compile Include="TestBase.cs" />
+    <Compile Include="Documents\BlockTests.cs" />
+    <Compile Include="Documents\FlowDocumentTests.cs" />
     <Compile Include="Documents\InlineTests.cs" />
     <Compile Include="Controls\InlineCodeRenderingTests.cs" />
     <Compile Include="Controls\SelectionGeometryTests.cs" />

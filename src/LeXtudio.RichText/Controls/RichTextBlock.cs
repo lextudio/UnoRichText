@@ -39,6 +39,7 @@ public class RichTextBlock : Panel
     private readonly InlineCollection _inlines;
     private readonly BlockCollection _blocks;
     private readonly FocusSink _focusSink = new();
+    private readonly RichTextBlockTextLayoutHost _textLayoutHost;
 
     private FlatItem[]? _flatItems;
     private int[] _flatItemCharOffsets = Array.Empty<int>();
@@ -55,6 +56,7 @@ public class RichTextBlock : Panel
     {
         VerticalAlignment = VerticalAlignment.Top;
         HorizontalAlignment = HorizontalAlignment.Stretch;
+        _textLayoutHost = new RichTextBlockTextLayoutHost(this);
         _inlines = new InlineCollection(WpfCollectionOwner, true);
         _blocks = new BlockCollection(WpfCollectionOwner, true);
 
@@ -119,6 +121,9 @@ public class RichTextBlock : Panel
 
     public InlineCollection Inlines => _inlines;
     public BlockCollection Blocks => _blocks;
+    public System.Windows.Documents.ITextLayoutHost TextLayoutHost => _textLayoutHost;
+    internal bool IsTextLayoutValid => _preparedSegments.Length == 0 || _flatItems is not null;
+    internal double ExtentHeight => _totalHeight;
 
     public FontFamily FontFamily { get; set; } = new FontFamily("Segoe UI");
     public double FontSize { get; set; } = 14;

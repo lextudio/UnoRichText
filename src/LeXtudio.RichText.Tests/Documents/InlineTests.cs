@@ -48,6 +48,24 @@ public sealed class InlineTests
     }
 
     [Test]
+    public void Span_TracksInlineRemoval()
+    {
+        if (RunInStandaloneWinUIProcessIfNeeded())
+            return;
+
+        var span = new Span();
+        var first = new Run("one");
+        var second = new Run("two");
+
+        span.Inlines.Add(first);
+        span.Inlines.Add(second);
+        span.Inlines.Remove(first);
+
+        Assert.That(span.Inlines, Has.Count.EqualTo(1));
+        Assert.That(span.Inlines[0], Is.SameAs(second));
+    }
+
+    [Test]
     public void Run_StringConstructorPreservesText()
     {
         if (RunInStandaloneWinUIProcessIfNeeded())
