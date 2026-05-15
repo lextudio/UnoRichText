@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: macos-latest
+          - os: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+      - name: Build
+        run: dotnet build src/LeXtudio.RichText/LeXtudio.RichText.csproj -c Release
+      - name: Run tests
+        run: dotnet test src/LeXtudio.RichText.Tests/LeXtudio.RichText.Tests.csproj -c Release --verbosity minimal --no-build
