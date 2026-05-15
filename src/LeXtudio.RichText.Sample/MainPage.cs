@@ -121,9 +121,9 @@ public sealed class MainPage : Page
         var rtb = new LeXtudioRTB { FontSize = 14 };
         var p = new Paragraph();
         p.Inlines.Add(new Run { Text = "This is a " });
-        p.Inlines.Add(new Run { Text = "bold", FontWeight = Microsoft.UI.Text.FontWeights.Bold });
+        p.Inlines.Add(new Run { Text = "bold", FontWeight = System.Windows.FontWeights.Bold });
         p.Inlines.Add(new Run { Text = " and " });
-        p.Inlines.Add(new Run { Text = "italic", FontStyle = Windows.UI.Text.FontStyle.Italic });
+        p.Inlines.Add(new Run { Text = "italic", FontStyle = System.Windows.FontStyles.Italic });
         p.Inlines.Add(new Run { Text = " paragraph with normal text wrapping." });
         rtb.Blocks.Add(p);
         return rtb;

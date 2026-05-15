@@ -189,7 +189,7 @@ public sealed class DiagPage : Page
         rtb.Blocks.Add(new Paragraph
         {
             FontSize = 32,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = System.Windows.FontWeights.SemiBold,
             Inlines =
             {
                 new Run { Text = "Large heading" }
