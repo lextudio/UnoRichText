@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>RichTextBlockCompat</RootNamespace>
+    <AssemblyName>RichTextBlockCompat</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="9.0.0" />
+    <!-- We only want the WinAppSDK package on disk to read Microsoft.WinUI.dll as metadata.
+         IncludeAssets="none" stops the package's build/targets/runtime from running while
+         still making it restore. GeneratePathProperty surfaces the package root to MSBuild. -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.241114003"
+                      GeneratePathProperty="true"
+                      IncludeAssets="none" />
+    <!-- Microsoft.WinUI.dll references Microsoft.Windows.SDK.NET (the WinRT C# projections).
+         We restore this package so the MetadataLoadContext can resolve those types. -->
+    <PackageReference Include="Microsoft.Windows.SDK.NET.Ref" Version="10.0.17763.57"
+                      GeneratePathProperty="true"
+                      IncludeAssets="none" />
+  </ItemGroup>
+
+  <!-- Build LeXtudio.RichText so its DLLs exist on disk; we load them as metadata at runtime,
+       not as a typed reference. ReferenceOutputAssembly=false keeps the tool's own typed deps clean. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LeXtudio.RichText\LeXtudio.RichText.csproj"
+                      ReferenceOutputAssembly="false"
+                      SetTargetFramework="TargetFramework=net10.0-desktop" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="MetadataLoader.cs" />
+    <Compile Include="TypePairs.cs" />
+    <Compile Include="ApiSurfaceExtractor.cs" />
+    <Compile Include="CompatChecker.cs" />
+    <Compile Include="ReportWriter.cs" />
+  </ItemGroup>
+
+  <!-- Surface package + build-output paths to the tool via AssemblyMetadata so it can find
+       Microsoft.WinUI.dll and LeXtudio's built assemblies at runtime, without any heuristics. -->
+  <Target Name="EmbedPathsForTool" BeforeTargets="BeforeBuild">
+    <PropertyGroup>
+      <LeXtudioRichTextOutputDir>$(MSBuildThisFileDirectory)..\..\src\LeXtudio.RichText\bin\$(Configuration)\net10.0-desktop\</LeXtudioRichTextOutputDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>WinAppSdkPackageRoot</_Parameter1>
+        <_Parameter2>$(PkgMicrosoft_WindowsAppSDK)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>WindowsSdkNetRefRoot</_Parameter1>
+        <_Parameter2>$(PkgMicrosoft_Windows_SDK_NET_Ref)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>LeXtudioRichTextOutputDir</_Parameter1>
+        <_Parameter2>$(LeXtudioRichTextOutputDir)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+</Project>
