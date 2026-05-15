@@ -33,7 +33,7 @@ public class RichTextBlock : Panel
 
     // All live RichTextBlock instances — used to clear other blocks' selections on pointer press.
     private static readonly List<WeakReference<RichTextBlock>> AllInstances = new();
-    private static readonly System.Windows.DependencyObject WpfCollectionOwner = new();
+    private static readonly System.Windows.FrameworkContentElement WpfCollectionOwner = new();
 
     private readonly Canvas _canvas = new();
     private readonly InlineCollection _inlines;
