@@ -24,11 +24,12 @@
     <IsPackable>true</IsPackable>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <UseNuGetPackage>false</UseNuGetPackage>
+    <UseNuGetPackage>true</UseNuGetPackage>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(UseNuGetPackage)' == 'true'">
     <PackageReference Include="Pretext.Uno" />
+    <PackageReference Include="LeXtudio.Windows" />
   </ItemGroup>
   <ItemGroup Condition="'$(UseNuGetPackage)' != 'true'">
     <ProjectReference Include="..\..\ext\PretextSharp\src\Pretext.Uno\Pretext.Uno.csproj" />
