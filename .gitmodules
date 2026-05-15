@@ -4,3 +4,6 @@
 [submodule "ext/PretextSharp"]
 	path = ext/PretextSharp
 	url = https://github.com/wieslawsoltes/PretextSharp
+[submodule "ext/wpf"]
+	path = ext/wpf
+	url = https://github.com/lextudio/wpf.git
