@@ -1,10 +1,8 @@
-using Microsoft.UI.Xaml;
-
 namespace System.Windows.Documents;
 
 public interface ITextLayoutHost
 {
-    UIElement RenderScope { get; }
+    object RenderScope { get; }
     bool IsLayoutValid { get; }
     double ViewportWidth { get; }
     double ViewportHeight { get; }

@@ -115,6 +115,7 @@ public class TextContainer
 
     public object? Parent { get; set; }
     public ITextLayoutHost? LayoutHost { get; set; }
+    public TextSelectionShim? TextSelection { get; set; }
 
     public void BeginChange()
     {
@@ -129,6 +130,17 @@ public class TextContainer
         _owner?.ClearLogicalChildren();
         LayoutHost?.InvalidateLayout();
     }
+}
+
+public sealed class TextSelectionShim
+{
+    public TextEditorShim TextEditor { get; } = new();
+}
+
+public sealed class TextEditorShim
+{
+    public bool IsReadOnly { get; set; }
+    public object? _cursor { get; set; }
 }
 
 public enum LogicalDirection

@@ -1,4 +1,3 @@
-using Microsoft.UI.Xaml;
 using NUnit.Framework;
 using System.Windows.Documents;
 
@@ -32,7 +31,7 @@ public sealed class FlowDocumentTests
 
     private sealed class FakeTextLayoutHost : ITextLayoutHost
     {
-        public UIElement RenderScope => throw new NotSupportedException();
+        public object RenderScope => new();
         public bool IsLayoutValid => true;
         public double ViewportWidth => 0;
         public double ViewportHeight => 0;

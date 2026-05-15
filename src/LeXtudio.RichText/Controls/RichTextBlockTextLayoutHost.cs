@@ -4,7 +4,7 @@ namespace LeXtudio.UI.Xaml.Controls;
 
 internal sealed class RichTextBlockTextLayoutHost(RichTextBlock owner) : System.Windows.Documents.ITextLayoutHost
 {
-    public UIElement RenderScope => owner;
+    public object RenderScope => owner;
 
     public bool IsLayoutValid => owner.IsTextLayoutValid;
 

@@ -35,6 +35,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="$(MSBuildProjectDirectory)\Shims\**\*.cs" />
+    <Compile Include="..\..\ext\shims\src\LeXtudio.Windows\Shims\**\*.cs">
+      <Link>Shims\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="" />
     <None Include="..\..\LICENSE" Pack="true" PackagePath="" />
     <None Include="..\..\images\company_logo_512.png" Pack="true" PackagePath="logo.png" />
@@ -56,8 +63,8 @@
              Link="System.Windows.Documents\Italic.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\LineBreak.cs"
              Link="System.Windows.Documents\LineBreak.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Hyperlink.cs"
-          Link="UpstreamWpf\Documents\Hyperlink.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Hyperlink.cs"
+             Link="System.Windows.Documents\Hyperlink.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\InlineCollection.cs"
              Link="System.Windows.Documents\InlineCollection.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\InlineUIContainer.cs"

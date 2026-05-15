@@ -5,9 +5,16 @@ namespace System.Windows.Documents;
 /// Microsoft WPF source reference:
 /// System/Windows/Documents/TextElement.cs (captured in docs/PROVENANCE.md).
 /// </summary>
-public abstract partial class TextElement : System.Windows.DependencyObject
+public abstract partial class TextElement : System.Windows.DependencyObject, System.Windows.Input.IInputElement
 {
     protected static readonly DependencyPropertyShim DefaultStyleKeyProperty = new();
+    protected static readonly DependencyPropertyShim FocusableProperty = new();
+    protected static readonly System.Windows.DependencyProperty IsEnabledProperty =
+        System.Windows.DependencyProperty.Register(
+            "IsEnabled",
+            typeof(bool),
+            typeof(TextElement),
+            new System.Windows.FrameworkPropertyMetadata(true));
     private readonly List<object> _children = [];
     private readonly TextPointer _contentStart;
     private readonly TextPointer _contentEnd;
@@ -22,6 +29,7 @@ public abstract partial class TextElement : System.Windows.DependencyObject
 
     public TextPointer ContentStart => _contentStart;
     public TextPointer ContentEnd => _contentEnd;
+    public bool IsEnabled => IsEnabledCore;
     internal TextPointer ElementStart => new(this, ElementEdge.BeforeStart);
     internal TextPointer ElementEnd => new(this, ElementEdge.AfterEnd);
     public object? Parent { get; internal set; }
@@ -128,4 +136,25 @@ public abstract partial class TextElement : System.Windows.DependencyObject
     internal virtual int EffectiveValuesInitialSize => 0;
 
     internal virtual bool IsIMEStructuralElement => false;
+
+    protected virtual bool IsEnabledCore => true;
+
+    protected internal virtual void OnMouseLeftButtonDown(System.Windows.Input.MouseButtonEventArgs e)
+    {
+    }
+
+    protected internal virtual void OnMouseLeftButtonUp(System.Windows.Input.MouseButtonEventArgs e)
+    {
+    }
+
+    protected internal virtual void OnKeyDown(System.Windows.KeyEventArgs e)
+    {
+    }
+
+    protected virtual System.Windows.Automation.Peers.AutomationPeer? OnCreateAutomationPeer()
+    {
+        return null;
+    }
+
+    internal virtual System.Windows.DependencyObjectType? DTypeThemeStyleKey => null;
 }
