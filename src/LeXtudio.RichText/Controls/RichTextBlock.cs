@@ -4,6 +4,7 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
@@ -21,6 +22,65 @@ namespace LeXtudio.UI.Xaml.Controls;
 
 public class RichTextBlock : Panel
 {
+    public static DependencyProperty CharacterSpacingProperty { get; } =
+        DependencyProperty.Register(nameof(CharacterSpacing), typeof(int), typeof(RichTextBlock), new PropertyMetadata(0, OnLayoutPropertyChanged));
+    public static DependencyProperty FontFamilyProperty { get; } =
+        DependencyProperty.Register(nameof(FontFamily), typeof(FontFamily), typeof(RichTextBlock), new PropertyMetadata(new FontFamily("Segoe UI"), OnLayoutPropertyChanged));
+    public static DependencyProperty FontSizeProperty { get; } =
+        DependencyProperty.Register(nameof(FontSize), typeof(double), typeof(RichTextBlock), new PropertyMetadata(14d, OnLayoutPropertyChanged));
+    public static DependencyProperty FontStretchProperty { get; } =
+        DependencyProperty.Register(nameof(FontStretch), typeof(FontStretch), typeof(RichTextBlock), new PropertyMetadata(System.Windows.FontStretches.Normal, OnLayoutPropertyChanged));
+    public static DependencyProperty FontStyleProperty { get; } =
+        DependencyProperty.Register(nameof(FontStyle), typeof(FontStyle), typeof(RichTextBlock), new PropertyMetadata(FontStyle.Normal, OnLayoutPropertyChanged));
+    public static DependencyProperty FontWeightProperty { get; } =
+        DependencyProperty.Register(nameof(FontWeight), typeof(FontWeight), typeof(RichTextBlock), new PropertyMetadata(FontWeights.Normal, OnLayoutPropertyChanged));
+    public static DependencyProperty ForegroundProperty { get; } =
+        DependencyProperty.Register(nameof(Foreground), typeof(Brush), typeof(RichTextBlock), new PropertyMetadata(new SolidColorBrush(Color.FromArgb(255, 0, 0, 0)), OnLayoutPropertyChanged));
+    public static DependencyProperty HasOverflowContentProperty { get; } =
+        DependencyProperty.Register(nameof(HasOverflowContent), typeof(bool), typeof(RichTextBlock), new PropertyMetadata(false));
+    public static DependencyProperty HorizontalTextAlignmentProperty { get; } =
+        DependencyProperty.Register(nameof(HorizontalTextAlignment), typeof(TextAlignment), typeof(RichTextBlock), new PropertyMetadata(TextAlignment.Left, OnLayoutPropertyChanged));
+    public static DependencyProperty IsColorFontEnabledProperty { get; } =
+        DependencyProperty.Register(nameof(IsColorFontEnabled), typeof(bool), typeof(RichTextBlock), new PropertyMetadata(true, OnLayoutPropertyChanged));
+    public static DependencyProperty IsTextScaleFactorEnabledProperty { get; } =
+        DependencyProperty.Register(nameof(IsTextScaleFactorEnabled), typeof(bool), typeof(RichTextBlock), new PropertyMetadata(true, OnLayoutPropertyChanged));
+    public static DependencyProperty IsTextSelectionEnabledProperty { get; } =
+        DependencyProperty.Register(nameof(IsTextSelectionEnabled), typeof(bool), typeof(RichTextBlock), new PropertyMetadata(true, OnIsTextSelectionEnabledChanged));
+    public static DependencyProperty IsTextTrimmedProperty { get; } =
+        DependencyProperty.Register(nameof(IsTextTrimmed), typeof(bool), typeof(RichTextBlock), new PropertyMetadata(false));
+    public static DependencyProperty LineHeightProperty { get; } =
+        DependencyProperty.Register(nameof(LineHeight), typeof(double), typeof(RichTextBlock), new PropertyMetadata(0d, OnLayoutPropertyChanged));
+    public static DependencyProperty LineStackingStrategyProperty { get; } =
+        DependencyProperty.Register(nameof(LineStackingStrategy), typeof(LineStackingStrategy), typeof(RichTextBlock), new PropertyMetadata(LineStackingStrategy.MaxHeight, OnLayoutPropertyChanged));
+    public static DependencyProperty MaxLinesProperty { get; } =
+        DependencyProperty.Register(nameof(MaxLines), typeof(int), typeof(RichTextBlock), new PropertyMetadata(0, OnLayoutPropertyChanged));
+    public static DependencyProperty OpticalMarginAlignmentProperty { get; } =
+        DependencyProperty.Register(nameof(OpticalMarginAlignment), typeof(OpticalMarginAlignment), typeof(RichTextBlock), new PropertyMetadata(OpticalMarginAlignment.None, OnLayoutPropertyChanged));
+    public static DependencyProperty OverflowContentTargetProperty { get; } =
+        DependencyProperty.Register(nameof(OverflowContentTarget), typeof(RichTextBlockOverflow), typeof(RichTextBlock), new PropertyMetadata(null));
+    public static DependencyProperty PaddingProperty { get; } =
+        DependencyProperty.Register(nameof(Padding), typeof(Thickness), typeof(RichTextBlock), new PropertyMetadata(default(Thickness), OnLayoutPropertyChanged));
+    public static DependencyProperty SelectedTextProperty { get; } =
+        DependencyProperty.Register(nameof(SelectedText), typeof(string), typeof(RichTextBlock), new PropertyMetadata(string.Empty));
+    public static DependencyProperty SelectionFlyoutProperty { get; } =
+        DependencyProperty.Register(nameof(SelectionFlyout), typeof(FlyoutBase), typeof(RichTextBlock), new PropertyMetadata(null));
+    public static DependencyProperty SelectionHighlightColorProperty { get; } =
+        DependencyProperty.Register(nameof(SelectionHighlightColor), typeof(SolidColorBrush), typeof(RichTextBlock), new PropertyMetadata(new SolidColorBrush(Color.FromArgb(80, 0, 120, 215)), OnSelectionVisualPropertyChanged));
+    public static DependencyProperty TextAlignmentProperty { get; } =
+        DependencyProperty.Register(nameof(TextAlignment), typeof(TextAlignment), typeof(RichTextBlock), new PropertyMetadata(TextAlignment.Left, OnLayoutPropertyChanged));
+    public static DependencyProperty TextDecorationsProperty { get; } =
+        DependencyProperty.Register(nameof(TextDecorations), typeof(TextDecorations), typeof(RichTextBlock), new PropertyMetadata(TextDecorations.None, OnLayoutPropertyChanged));
+    public static DependencyProperty TextIndentProperty { get; } =
+        DependencyProperty.Register(nameof(TextIndent), typeof(double), typeof(RichTextBlock), new PropertyMetadata(0d, OnLayoutPropertyChanged));
+    public static DependencyProperty TextLineBoundsProperty { get; } =
+        DependencyProperty.Register(nameof(TextLineBounds), typeof(TextLineBounds), typeof(RichTextBlock), new PropertyMetadata(TextLineBounds.Full, OnLayoutPropertyChanged));
+    public static DependencyProperty TextReadingOrderProperty { get; } =
+        DependencyProperty.Register(nameof(TextReadingOrder), typeof(TextReadingOrder), typeof(RichTextBlock), new PropertyMetadata(TextReadingOrder.DetectFromContent, OnLayoutPropertyChanged));
+    public static DependencyProperty TextTrimmingProperty { get; } =
+        DependencyProperty.Register(nameof(TextTrimming), typeof(TextTrimming), typeof(RichTextBlock), new PropertyMetadata(TextTrimming.None, OnLayoutPropertyChanged));
+    public static DependencyProperty TextWrappingProperty { get; } =
+        DependencyProperty.Register(nameof(TextWrapping), typeof(TextWrapping), typeof(RichTextBlock), new PropertyMetadata(TextWrapping.WrapWholeWords, OnLayoutPropertyChanged));
+
     private static SolidColorBrush? _selectionBrush;
     private static SolidColorBrush SelectionBrush =>
         _selectionBrush ??= new(Color.FromArgb(80, 0, 120, 215));
@@ -50,7 +110,7 @@ public class RichTextBlock : Panel
     private int _selectionAnchor = -1;
     private int _selectionFocus = -1;
     private bool _isPointerDown;
-    private bool _isTextSelectionEnabled = true;
+    private readonly IList<Microsoft.UI.Xaml.Documents.TextHighlighter> _textHighlighters = new List<Microsoft.UI.Xaml.Documents.TextHighlighter>();
 
     public RichTextBlock()
     {
@@ -125,46 +185,213 @@ public class RichTextBlock : Panel
     internal bool IsTextLayoutValid => _preparedSegments.Length == 0 || _flatItems is not null;
     internal double ExtentHeight => _totalHeight;
 
-    public FontFamily FontFamily { get; set; } = new FontFamily("Segoe UI");
-    public double FontSize { get; set; } = 14;
-    public FontWeight FontWeight { get; set; } = FontWeights.Normal;
-    public FontStyle FontStyle { get; set; } = FontStyle.Normal;
-    public Brush Foreground { get; set; } = new SolidColorBrush(Color.FromArgb(255, 0, 0, 0));
-    public TextWrapping TextWrapping { get; set; } = TextWrapping.WrapWholeWords;
-    public double LineHeight { get; set; }
+    public double BaselineOffset => 0d;
+    public int CharacterSpacing
+    {
+        get => (int)GetValue(CharacterSpacingProperty);
+        set => SetValue(CharacterSpacingProperty, value);
+    }
+
+    public TextPointer ContentEnd => CreateTextPointer(TextLength);
+    public TextPointer ContentStart => CreateTextPointer(0);
+
+    public FontFamily FontFamily
+    {
+        get => (FontFamily)GetValue(FontFamilyProperty);
+        set => SetValue(FontFamilyProperty, value);
+    }
+
+    public double FontSize
+    {
+        get => (double)GetValue(FontSizeProperty);
+        set => SetValue(FontSizeProperty, value);
+    }
+
+    public FontStretch FontStretch
+    {
+        get => (FontStretch)GetValue(FontStretchProperty);
+        set => SetValue(FontStretchProperty, value);
+    }
+
+    public FontWeight FontWeight
+    {
+        get => (FontWeight)GetValue(FontWeightProperty);
+        set => SetValue(FontWeightProperty, value);
+    }
+
+    public FontStyle FontStyle
+    {
+        get => (FontStyle)GetValue(FontStyleProperty);
+        set => SetValue(FontStyleProperty, value);
+    }
+
+    public Brush Foreground
+    {
+        get => (Brush)GetValue(ForegroundProperty);
+        set => SetValue(ForegroundProperty, value);
+    }
+
+    public bool HasOverflowContent => false;
+
+    public TextAlignment HorizontalTextAlignment
+    {
+        get => (TextAlignment)GetValue(HorizontalTextAlignmentProperty);
+        set => SetValue(HorizontalTextAlignmentProperty, value);
+    }
+
+    public bool IsColorFontEnabled
+    {
+        get => (bool)GetValue(IsColorFontEnabledProperty);
+        set => SetValue(IsColorFontEnabledProperty, value);
+    }
+
+    public bool IsTextScaleFactorEnabled
+    {
+        get => (bool)GetValue(IsTextScaleFactorEnabledProperty);
+        set => SetValue(IsTextScaleFactorEnabledProperty, value);
+    }
 
     public bool IsTextSelectionEnabled
     {
-        get => _isTextSelectionEnabled;
-        set
-        {
-            if (_isTextSelectionEnabled == value)
-                return;
+        get => (bool)GetValue(IsTextSelectionEnabledProperty);
+        set => SetValue(IsTextSelectionEnabledProperty, value);
+    }
 
-            _isTextSelectionEnabled = value;
-            if (!value)
-                ClearSelectionSilent();
-            UpdateSelectionCursor();
-        }
+    public bool IsTextTrimmed => false;
+
+    public double LineHeight
+    {
+        get => (double)GetValue(LineHeightProperty);
+        set => SetValue(LineHeightProperty, value);
+    }
+
+    public LineStackingStrategy LineStackingStrategy
+    {
+        get => (LineStackingStrategy)GetValue(LineStackingStrategyProperty);
+        set => SetValue(LineStackingStrategyProperty, value);
+    }
+
+    public int MaxLines
+    {
+        get => (int)GetValue(MaxLinesProperty);
+        set => SetValue(MaxLinesProperty, value);
+    }
+
+    public OpticalMarginAlignment OpticalMarginAlignment
+    {
+        get => (OpticalMarginAlignment)GetValue(OpticalMarginAlignmentProperty);
+        set => SetValue(OpticalMarginAlignmentProperty, value);
+    }
+
+    public RichTextBlockOverflow? OverflowContentTarget
+    {
+        get => (RichTextBlockOverflow?)GetValue(OverflowContentTargetProperty);
+        set => SetValue(OverflowContentTargetProperty, value);
+    }
+
+    public Thickness Padding
+    {
+        get => (Thickness)GetValue(PaddingProperty);
+        set => SetValue(PaddingProperty, value);
     }
 
     public string SelectedText => BuildSelectedText();
 
+    public TextPointer SelectionEnd => CreateTextPointer(Math.Max(Math.Max(_selectionAnchor, _selectionFocus), 0));
+
+    public FlyoutBase? SelectionFlyout
+    {
+        get => (FlyoutBase?)GetValue(SelectionFlyoutProperty);
+        set => SetValue(SelectionFlyoutProperty, value);
+    }
+
+    public SolidColorBrush SelectionHighlightColor
+    {
+        get => (SolidColorBrush)GetValue(SelectionHighlightColorProperty);
+        set => SetValue(SelectionHighlightColorProperty, value);
+    }
+
+    public TextPointer SelectionStart => CreateTextPointer(Math.Min(
+        _selectionAnchor >= 0 ? _selectionAnchor : TextLength,
+        _selectionFocus >= 0 ? _selectionFocus : TextLength));
+
+    public TextAlignment TextAlignment
+    {
+        get => (TextAlignment)GetValue(TextAlignmentProperty);
+        set => SetValue(TextAlignmentProperty, value);
+    }
+
+    public TextDecorations TextDecorations
+    {
+        get => (TextDecorations)GetValue(TextDecorationsProperty);
+        set => SetValue(TextDecorationsProperty, value);
+    }
+
+    public IList<Microsoft.UI.Xaml.Documents.TextHighlighter> TextHighlighters => _textHighlighters;
+
+    public double TextIndent
+    {
+        get => (double)GetValue(TextIndentProperty);
+        set => SetValue(TextIndentProperty, value);
+    }
+
+    public TextLineBounds TextLineBounds
+    {
+        get => (TextLineBounds)GetValue(TextLineBoundsProperty);
+        set => SetValue(TextLineBoundsProperty, value);
+    }
+
+    public TextReadingOrder TextReadingOrder
+    {
+        get => (TextReadingOrder)GetValue(TextReadingOrderProperty);
+        set => SetValue(TextReadingOrderProperty, value);
+    }
+
+    public TextTrimming TextTrimming
+    {
+        get => (TextTrimming)GetValue(TextTrimmingProperty);
+        set => SetValue(TextTrimmingProperty, value);
+    }
+
+    public TextWrapping TextWrapping
+    {
+        get => (TextWrapping)GetValue(TextWrappingProperty);
+        set => SetValue(TextWrappingProperty, value);
+    }
+
     public event EventHandler<HyperlinkClickEventArgs>? LinkClicked;
+    public event ContextMenuOpeningEventHandler? ContextMenuOpening;
+    public event global::Windows.Foundation.TypedEventHandler<RichTextBlock, IsTextTrimmedChangedEventArgs>? IsTextTrimmedChanged;
+    public event RoutedEventHandler? SelectionChanged;
 
     public void SelectAll()
     {
         if (_flatItemCharOffsets.Length == 0) return;
-        _selectionAnchor = 0;
-        _selectionFocus = _flatItemCharOffsets[^1];
-        InvalidateArrange();
+        SetSelection(0, _flatItemCharOffsets[^1]);
     }
 
     public void ClearSelection()
     {
-        _selectionAnchor = -1;
-        _selectionFocus = -1;
-        InvalidateArrange();
+        SetSelection(-1, -1);
+    }
+
+    public void CopySelectionToClipboard()
+    {
+        var text = SelectedText;
+        if (string.IsNullOrEmpty(text))
+            return;
+
+        var dp = new DataPackage();
+        dp.SetText(text);
+        Clipboard.SetContent(dp);
+    }
+
+    public TextPointer GetPositionFromPoint(Point point)
+        => CreateTextPointer(HitTest(point, clampToContent: true));
+
+    public void Select(TextPointer start, TextPointer end)
+    {
+        SetSelection(GetOffset(start), GetOffset(end));
     }
 
     // ── Layout ────────────────────────────────────────────────────────
@@ -396,7 +623,7 @@ public class RichTextBlock : Panel
                         {
                             Width = (t1 - t0) * placed.Width,
                             Height = lineHeight,
-                            Fill = SelectionBrush
+                            Fill = SelectionHighlightColor
                         };
                         Canvas.SetLeft(highlight, placed.X + t0 * placed.Width);
                         Canvas.SetTop(highlight, placed.Y);
@@ -516,13 +743,7 @@ public class RichTextBlock : Panel
         }
         else if (e.Key == VirtualKey.C)
         {
-            var text = SelectedText;
-            if (!string.IsNullOrEmpty(text))
-            {
-                var dp = new DataPackage();
-                dp.SetText(text);
-                Clipboard.SetContent(dp);
-            }
+            CopySelectionToClipboard();
             e.Handled = true;
         }
     }
@@ -613,9 +834,7 @@ public class RichTextBlock : Panel
 
     private void ClearSelectionSilent()
     {
-        _selectionAnchor = -1;
-        _selectionFocus = -1;
-        InvalidateArrange();
+        SetSelection(-1, -1, raiseSelectionChanged: false);
     }
 
     private static List<RichTextBlock> GetLiveBlocks()
@@ -639,6 +858,43 @@ public class RichTextBlock : Panel
         ProtectedCursor = IsTextSelectionEnabled ? TextSelectionCursor : null;
     }
 
+    private TextPointer CreateTextPointer(int offset)
+    {
+        var pointer = new TextPointer
+        {
+            Parent = this,
+            ParentType = GetType(),
+        };
+
+        pointer.SetValue(pointerOffsetProperty, Math.Clamp(offset, 0, TextLength));
+        return pointer;
+    }
+
+    private int GetOffset(TextPointer pointer)
+    {
+        if (pointer.Parent is RichTextBlock block && ReferenceEquals(block, this))
+        {
+            var value = pointer.GetValue(pointerOffsetProperty);
+            if (value is int offset)
+                return offset;
+        }
+
+        return 0;
+    }
+
+    private void SetSelection(int anchor, int focus, bool raiseSelectionChanged = true)
+    {
+        if (_selectionAnchor == anchor && _selectionFocus == focus)
+            return;
+
+        _selectionAnchor = anchor;
+        _selectionFocus = focus;
+        SetValue(SelectedTextProperty, BuildSelectedText());
+        InvalidateArrange();
+        if (raiseSelectionChanged)
+            SelectionChanged?.Invoke(this, new RoutedEventArgs());
+    }
+
     // ── Content collection ────────────────────────────────────────────
 
     private void CollectFlatItems(List<FlatItem> result, InheritedProperties root)
@@ -657,9 +913,9 @@ public class RichTextBlock : Panel
             {
                 var blockProps = root;
                 if (!double.IsNaN(bp.FontSize)) blockProps = blockProps with { FontSize = bp.FontSize };
-                if (bp.FontWeight.ToOpenTypeWeight() != 400) // 400 = Normal
+                if (bp.FontWeight.Weight != 400)
                 {
-                    var normalizedWeight = bp.FontWeight.ToOpenTypeWeight() switch
+                    var normalizedWeight = bp.FontWeight.Weight switch
                     {
                         100 => FontWeights.Thin,
                         200 => FontWeights.ExtraLight,
@@ -825,6 +1081,32 @@ public class RichTextBlock : Panel
             Height = 0;
             Opacity = 0;
         }
+    }
+
+    private static readonly DependencyProperty pointerOffsetProperty =
+        DependencyProperty.RegisterAttached("PointerOffset", typeof(int), typeof(RichTextBlock), new PropertyMetadata(0));
+
+    private static void OnLayoutPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is RichTextBlock block)
+            block.InvalidateMeasure();
+    }
+
+    private static void OnSelectionVisualPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is RichTextBlock block)
+            block.InvalidateArrange();
+    }
+
+    private static void OnIsTextSelectionEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not RichTextBlock block)
+            return;
+
+        if (!(bool)e.NewValue)
+            block.ClearSelectionSilent();
+
+        block.UpdateSelectionCursor();
     }
 }
 

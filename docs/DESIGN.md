@@ -2,110 +2,112 @@
 
 ## Goal
 
-Provide a **fully implemented `RichTextBlock` for Uno with 100% API parity to WinUI 3**.
+Provide a fully implemented `RichTextBlock` for Uno with 100% API parity to WinUI 3.
 
-The two halves of the goal are equally load-bearing:
+The goal has two equally important halves:
 
-- **API parity with WinUI 3** (measured): every public member of `Microsoft.UI.Xaml.Controls.RichTextBlock` and its supporting document types — as declared by **the Windows App SDK** — exists on the LeXtudio side with the same signature. Tracked by [`tools/RichTextBlockCompat`](../tools/RichTextBlockCompat/README.md) against [`COMPAT-REPORT.md`](COMPAT-REPORT.md). Target: 100%.
-- **Fully implemented** (means it actually works): members do real work, not `NotImplementedException`. We accept stubs only for members WinUI 3 itself rarely uses meaningfully (see Phase 4 of [`COMPAT-PLAN.md`](COMPAT-PLAN.md)).
+- API parity with WinUI 3, measured against the Windows App SDK metadata through [`tools/RichTextBlockCompat`](../tools/RichTextBlockCompat/README.md) and tracked in [`COMPAT-REPORT.md`](COMPAT-REPORT.md).
+- Real behavior, meaning the members that matter to rendering and interaction actually work.
 
-### The Three Categories
+## The Three Categories
 
-To keep the picture clear, three different things share similar names:
+Three different things are easy to conflate, so we keep them separate:
 
-1. **WinUI 3** — `Microsoft.UI.Xaml.*` as declared by the Windows App SDK. **This is the reference authority.**
-2. *(out of scope)* — Uno Platform's own reimplementation of `Microsoft.UI.Xaml.*`. We do not measure against it, do not depend on its implementation status, and do not inherit from its types in our public surface.
-3. **UnoRichText** — `LeXtudio.UI.Xaml.Controls.RichTextBlock` and the `System.Windows.Documents.*` types we ship. **This is the subject under test.**
+1. **WinUI 3** — `Microsoft.UI.Xaml.*` as declared by Microsoft in the Windows App SDK. This is the reference authority.
+2. **Other reimplementations of `Microsoft.UI.Xaml.*`** — informational only. We do not measure parity against them and do not inherit from them in our public surface.
+3. **UnoRichText** — `LeXtudio.UI.Xaml.Controls.RichTextBlock` plus the `System.Windows.Documents.*` bridge types we ship. This is the subject under test.
 
-The goal is parity between (1) and (3). Anything about (2) is informational at most.
+Parity is measured between (1) and (3).
 
-## Why
+## Architecture Direction
 
-Uno's built-in `RichTextBlock` has rendering, layout, and interaction gaps that block native markdown rendering and other rich-text scenarios — especially around `InlineUIContainer`, hyperlink hit-testing, and text selection consistency. The pragmatic fix is a drop-in replacement control, not a full document-model rewrite.
+We are taking a WinUI-parity-first approach while maximizing source sharing with WPF where it is reasonable.
 
-## What "Compatible" Means
+### Control layer
 
-`LeXtudio.UI.Xaml.Controls.RichTextBlock` is API-compatible with `Microsoft.UI.Xaml.Controls.RichTextBlock` for the surface that real consumers actually use:
+`LeXtudio.UI.Xaml.Controls.RichTextBlock` is ours. We own its files and add members directly there.
 
-1. **Block content**: `Blocks` collection accepts `Paragraph`, with `Inlines` of `Run`, `Span`, `Bold`, `Italic`, `Underline`, `Hyperlink`, `LineBreak`, `InlineUIContainer`.
-2. **Visual fidelity**: text layout, line breaking, inline UI, and selection rendering match WinUI behavior closely enough that callers cannot tell the difference at the API or visual level.
-3. **Interaction**: pointer-based text selection, copy, hyperlink hit-testing, and cursor changes behave as WinUI users expect.
-4. **Properties**: `FontSize`, `FontFamily`, `FontWeight`, `Foreground`, `TextWrapping`, `IsTextSelectionEnabled`, and other commonly-set properties have the WinUI semantics.
+### Document layer
 
-Anything beyond this — `TextPointer`, `TextRange`, editing, `FlowDocument`-level features — is **not a goal** and not part of compatibility.
+`System.Windows.Documents.*` types are brought over from upstream WPF source where practical. The working model is:
 
-## Document Model Source
+| File | Ownership | Purpose |
+|---|---|---|
+| `Type.cs` | upstream WPF, read-only | linked source-of-truth implementation |
+| `Type.wpf.cs` | WPF-target glue, read-only | upstream or WPF-side adapter code |
+| `Type.uno.cs` | editable | Uno and WinUI bridging, parity fills, local behavior |
 
-The document types (`Run`, `Span`, `Paragraph`, `Hyperlink`, `Inline`, …) reflect the **WinUI** document model in `Microsoft.UI.Xaml.Documents`. Where Uno already provides the type, use it directly. Where Uno's version is incomplete, fill the gap with the minimum local shim needed to make `RichTextBlock` render and interact correctly.
+For document types, new parity members go into `Type.uno.cs` partials. If a type has no `.uno.cs` yet, create one. Do not edit upstream `Type.cs` or `Type.wpf.cs` unless there is explicit approval for that exact change.
 
-WPF source is a **reference only** — consulted when WinUI's semantics are underspecified — never the design authority for this control.
+### Shim layer
 
-## Non-Goals
+`ext/shims/src/LeXtudio.Windows` exists to make WPF-oriented source compile and behave sensibly on WinUI and Uno. The default rule is:
 
-These are explicitly out of scope. Do not invest engineering time here:
+- use WinUI types directly when there is a clean equivalent
+- keep a local shim only when WinUI has no equivalent or the WPF contract is materially different
 
-- WPF `FlowDocument` pipeline (`FlowDocumentScrollViewer`, `DocumentPaginator`, pagination).
-- `Table`/`TableRow`/`TableCell` rendering (WinUI doesn't render tables in `RichTextBlock`; we won't either).
-- `TextPointer` / `TextRange` / `TextSelection` editing API.
-- `RichEditBox`-style editing (`RichTextBlock` is read-only in WinUI; ours is too).
-- Full-namespace port of `System.Windows.Documents` (the previous "223 files" plan is abandoned).
-- Source-parity tests against WPF.
+That is why aliases to WinUI types are preferred for things like `Brush`, `Color`, `Point`, `Rect`, `Size`, `FlowDirection`, and `TextBlock`.
 
-If a future scenario genuinely needs one of these, it gets its own scoped design — not bundled into `RichTextBlock`.
+## Parity Mechanisms
 
-## Architecture
+When a member is missing on UnoRichText, add it in one of two ways:
 
-### Layer 1 — `LeXtudio.UI.Xaml.Controls.RichTextBlock` (the control)
+| Mechanism | Default use |
+|---|---|
+| Real member on the type | preferred |
+| C# 14 extension member | fallback when the type cannot otherwise be reached cleanly |
 
-The drop-in replacement. Lives in `src/LeXtudio.RichText/Controls/RichTextBlock.cs`. Responsibilities:
+Real members are preferred because they show up naturally in reflection, match the WinUI shape better, and do not require special imports from consumers.
 
-- Hosts a flat-item layout pipeline backed by PretextSharp for text measurement.
-- Walks `Blocks` / `Inlines` and produces visual fragments on a `Canvas`.
-- Owns pointer handling, selection rendering, hyperlink hit-testing, and clipboard copy.
+Extension members are acceptable for shimmed WinUI-owned types, but they should be the exception, not the routine path.
 
-This is the only file consumers care about. Keep its public surface aligned with `Microsoft.UI.Xaml.Controls.RichTextBlock`.
+## Stub vs Implement
 
-### Layer 2 — Document model gap fills
+Not every parity member deserves full behavior on day one.
 
-Where Uno's `Microsoft.UI.Xaml.Documents.*` is incomplete for our needs, fill the gap with the smallest shim that makes Layer 1 work. Each shim must be justified by a concrete `RichTextBlock` rendering or interaction requirement.
+- **Implement** members that matter to layout, rendering, selection, hit-testing, text styling, and realistic app usage.
+- **Stub** members that are compile blockers in non-goal areas such as deep text-pointer editing or keytip/access-key infrastructure.
 
-### Layer 3 — `LeXtudio.Windows` shim (separate repo)
+Stubs must not throw `NotImplementedException`. They should return a sensible default, no-op, or dead event.
 
-Exists for WPF→WinUI source compatibility in a broader sense (used by UnoEdit too). Its evolution is **not driven** by `RichTextBlock` needs — `RichTextBlock` only consumes what's already there.
+## Scope
 
-## Build and File Layout
+Current parity work is focused on:
 
-- `src/LeXtudio.RichText/Controls/` — the control.
-- `src/LeXtudio.RichText/Documents/` — gap-fill shims, if any.
-- `src/LeXtudio.RichText.Sample/` — visual smoke test, also runs `--diag` for CI.
-- `src/LeXtudio.RichText.Tests/` — behavior tests for the control.
+- `LeXtudio.UI.Xaml.Controls.RichTextBlock`
+- `System.Windows.Documents.TextElement` and the WinUI-facing document hierarchy around it
+- the API surface that WinUI 3 exposes for `Block`, `Paragraph`, `Inline`, `Run`, `Span`, `Bold`, `Italic`, `Underline`, `Hyperlink`, `LineBreak`, and `InlineUIContainer`
 
-Naming: plain `.cs` only. No `.wpf.cs` / `.uno.cs` splits — this project targets Uno; there is no other platform.
+This does not mean we avoid bringing over more of `System.Windows.Documents`. It means additions should be driven by WinUI parity and coherent bridge architecture, not by bulk import alone.
 
-## Testing
+## Non-goals
 
-The bar is **behavioral equivalence with WinUI `RichTextBlock`**, not parity with WPF source:
+These remain outside the current effort unless explicitly re-scoped:
 
-1. `LeXtudio.RichText.Tests` covers the control's observable behavior — flat-item layout, selection geometry, inline-code rendering, hyperlink hit-testing.
-2. The sample's `--diag` mode is the integration smoke gate.
-3. When a regression is reported, the test added should pin down the WinUI-equivalent behavior, not a WPF reference behavior.
+- full WPF pagination pipeline
+- full editing stack comparable to `RichEditBox`
+- complete `TextRange` and `TextSelection` behavior parity
+- blind source-porting of upstream internals that have no WinUI-facing value
 
-## Measuring Compatibility
+## Testing and Measurement
 
-API-surface coverage is tracked by [`tools/RichTextBlockCompat`](../tools/RichTextBlockCompat/README.md). It reflects over the WinUI types and our local types, compares public members, and emits a percentage plus a gap report at [`docs/COMPAT-REPORT.md`](COMPAT-REPORT.md).
+We measure shape and behavior separately.
 
-- Run: `dotnet run --project UnoRichText/tools/RichTextBlockCompat`
-- Gate: `dotnet run --project UnoRichText/tools/RichTextBlockCompat -- --min 50` (exit 1 if overall coverage drops below 50%).
+1. `tools/RichTextBlockCompat` measures public API parity against real Windows App SDK metadata.
+2. Unit and sample tests validate behavior, rendering, selection, and interaction.
 
-The tool measures *static* API shape only — runtime behavior and visual fidelity are out of its scope by design. Use the regular tests for those.
+Run the compatibility tool with:
 
-## Decision History
+```powershell
+dotnet run --project UnoRichText/tools/RichTextBlockCompat
+```
 
-- **Previously**: WPF-source-first port of `System.Windows.Documents` (223 files) with `.wpf.cs` / `.uno.cs` partials, linked upstream files, provenance manifests, dependency-ring migrations. **Abandoned** — the cost was disproportionate to the actual `RichTextBlock` consumer need, and most WPF document infrastructure has no WinUI rendering path anyway (see `ext/shims/docs/ARCHITECTURE.md` — "Do Not Port").
-- **Now**: WinUI-compatible drop-in control, minimal document-model shimming, no full namespace ambition.
+The generated report lives at [`COMPAT-REPORT.md`](COMPAT-REPORT.md).
 
-## Risks
+## Working Rules
 
-1. **Uno feature drift**: Uno's `Microsoft.UI.Xaml.Documents` types evolve. Mitigation: keep our consumption surface narrow; add a smoke test per Uno bump.
-2. **WinUI semantic ambiguity**: where WinUI's behavior is underspecified (e.g. exact selection geometry), make a pragmatic choice and pin it with a test.
-3. **Scope creep**: pressure to add `TextPointer`, editing, tables, etc. Mitigation: this document is the answer — those are non-goals.
+- Prefer WinUI types when there is a clean one-to-one mapping.
+- Prefer linked WPF source for document types where that improves long-term maintainability.
+- Put Uno-specific parity members in `.uno.cs` partials.
+- Keep upstream WPF-linked files read-only unless explicit approval is given.
+- Re-run the compat tool after each meaningful parity batch.

@@ -65,7 +65,7 @@ For every member we add:
 Before mass member additions, pick the mechanism explicitly.
 
 - **Default:** real members on our types. Simpler, no tool change required, no consumer-import friction.
-- **If C# 14 extension members are preferred:** extend `tools/RichTextBlockCompat` to additionally scan source files for `extension(LocalType)` blocks via Roslyn and merge those members into the local surface before comparison.
+- **Only if we are forced to use C# 14 extension members:** extend `tools/RichTextBlockCompat` to additionally scan source files for `extension(LocalType)` blocks via Roslyn and merge those members into the local surface before comparison.
 
 Document the choice in `DESIGN.md` so future contributors don't drift.
 
