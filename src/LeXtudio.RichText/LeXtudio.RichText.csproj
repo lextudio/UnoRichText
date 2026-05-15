@@ -24,7 +24,7 @@
     <IsPackable>true</IsPackable>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <UseNuGetPackage>true</UseNuGetPackage>
+    <UseNuGetPackage>false</UseNuGetPackage>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(UseNuGetPackage)' == 'true'">
@@ -32,13 +32,7 @@
   </ItemGroup>
   <ItemGroup Condition="'$(UseNuGetPackage)' != 'true'">
     <ProjectReference Include="..\..\ext\PretextSharp\src\Pretext.Uno\Pretext.Uno.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Remove="$(MSBuildProjectDirectory)\Shims\**\*.cs" />
-    <Compile Include="..\..\ext\shims\src\LeXtudio.Windows\Shims\**\*.cs">
-      <Link>Shims\%(RecursiveDir)%(Filename)%(Extension)</Link>
-    </Compile>
+    <ProjectReference Include="..\..\ext\shims\src\LeXtudio.Windows\LeXtudio.Windows.csproj" />
   </ItemGroup>
 
   <ItemGroup>

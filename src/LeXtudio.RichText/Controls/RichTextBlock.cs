@@ -657,8 +657,25 @@ public class RichTextBlock : Panel
             {
                 var blockProps = root;
                 if (!double.IsNaN(bp.FontSize)) blockProps = blockProps with { FontSize = bp.FontSize };
-                if (bp.FontWeight.Weight != FontWeights.Normal.Weight) blockProps = blockProps with { FontWeight = bp.FontWeight };
-                if (bp.FontFamily is not null) blockProps = blockProps with { FontFamily = bp.FontFamily };
+                if (bp.FontWeight.ToOpenTypeWeight() != 400) // 400 = Normal
+                {
+                    var normalizedWeight = bp.FontWeight.ToOpenTypeWeight() switch
+                    {
+                        100 => FontWeights.Thin,
+                        200 => FontWeights.ExtraLight,
+                        300 => FontWeights.Light,
+                        400 => FontWeights.Normal,
+                        500 => FontWeights.Medium,
+                        600 => FontWeights.SemiBold,
+                        700 => FontWeights.Bold,
+                        800 => FontWeights.ExtraBold,
+                        900 => FontWeights.Black,
+                        _ => FontWeights.Normal
+                    };
+                    blockProps = blockProps with { FontWeight = normalizedWeight };
+                }
+                if (bp.FontFamily is not null)
+                    blockProps = blockProps with { FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(bp.FontFamily.ToString()) };
                 if (bp.Foreground is not null) blockProps = blockProps with { Foreground = bp.Foreground };
                 FlattenInlines(bp.Inlines, result, blockProps);
             }
