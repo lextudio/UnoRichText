@@ -1,2 +1,1 @@
-global using TextBlock = System.Windows.Controls.TextBlock;
-global using DependencyProperty = System.Windows.DependencyPropertyShim;
+global using TextBlock = Microsoft.UI.Xaml.Controls.TextBlock;

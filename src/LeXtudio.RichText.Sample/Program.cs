@@ -5,7 +5,7 @@ namespace LeXtudio.RichText.Sample;
 public static class Program
 {
     [STAThread]
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         App.DiagMode = args.Contains("--diag");
 
@@ -15,6 +15,6 @@ public static class Program
             .UseMacOS()
             .UseWin32()
             .Build();
-        host.Run();
+        await host.RunAsync();
     }
 }
