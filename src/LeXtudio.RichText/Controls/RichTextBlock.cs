@@ -579,6 +579,7 @@ public class RichTextBlock : Panel
                     {
                         var textItem = (TextRunItem)flatItem;
                         var fragForeground = CloneBrush(textItem.Props.Foreground);
+                        var stretchScale = InheritedProperties.FontStretchScale(textItem.Props.FontStretch);
                         var tb = new Microsoft.UI.Xaml.Controls.TextBlock
                         {
                             Text = fragment.Text,
@@ -586,14 +587,19 @@ public class RichTextBlock : Panel
                             FontSize = textItem.Props.FontSize,
                             FontWeight = textItem.Props.FontWeight,
                             FontStyle = textItem.Props.FontStyle,
-                            FontStretch = textItem.Props.FontStretch,
+                            FontStretch = FontStretch.Normal,
                             CharacterSpacing = textItem.Props.CharacterSpacing,
                             TextWrapping = TextWrapping.NoWrap,
                         };
+                        if (stretchScale != 1.0)
+                        {
+                            tb.RenderTransformOrigin = new Point(0, 0);
+                            tb.RenderTransform = new ScaleTransform { ScaleX = stretchScale };
+                        }
                         tb.Foreground = fragForeground;
                         DiagLog($"  frag tb created text=\"{fragment.Text}\" requested={fragForeground} actual={tb.Foreground}");
                         tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                        fragmentWidth = tb.DesiredSize.Width > 0 ? tb.DesiredSize.Width : fragment.OccupiedWidth;
+                        fragmentWidth = (tb.DesiredSize.Width > 0 ? tb.DesiredSize.Width : fragment.OccupiedWidth) * stretchScale;
                         if (tb.DesiredSize.Height > 0)
                             lineHeight = Math.Max(lineHeight, tb.DesiredSize.Height);
                         if (textItem.Hyperlink is { } link)

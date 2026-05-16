@@ -92,8 +92,36 @@ internal record InheritedProperties(
         var weight = FontWeight.Weight;
         if (weight >= 700) sb.Append("bold ");
         else if (weight != 400) sb.Append($"{weight} ");
+        var stretch = ToCssFontStretch(FontStretch);
+        if (stretch.Length > 0) sb.Append(stretch).Append(' ');
         sb.Append($"{FontSize}px ");
         sb.Append(FontFamily?.ToString() ?? "sans-serif");
         return sb.ToString().TrimEnd();
     }
+
+    internal static double FontStretchScale(global::Windows.UI.Text.FontStretch stretch) => stretch switch
+    {
+        global::Windows.UI.Text.FontStretch.UltraCondensed => 0.5,
+        global::Windows.UI.Text.FontStretch.ExtraCondensed => 0.625,
+        global::Windows.UI.Text.FontStretch.Condensed => 0.75,
+        global::Windows.UI.Text.FontStretch.SemiCondensed => 0.875,
+        global::Windows.UI.Text.FontStretch.SemiExpanded => 1.125,
+        global::Windows.UI.Text.FontStretch.Expanded => 1.25,
+        global::Windows.UI.Text.FontStretch.ExtraExpanded => 1.5,
+        global::Windows.UI.Text.FontStretch.UltraExpanded => 2.0,
+        _ => 1.0
+    };
+
+    private static string ToCssFontStretch(global::Windows.UI.Text.FontStretch stretch) => stretch switch
+    {
+        global::Windows.UI.Text.FontStretch.UltraCondensed => "ultra-condensed",
+        global::Windows.UI.Text.FontStretch.ExtraCondensed => "extra-condensed",
+        global::Windows.UI.Text.FontStretch.Condensed => "condensed",
+        global::Windows.UI.Text.FontStretch.SemiCondensed => "semi-condensed",
+        global::Windows.UI.Text.FontStretch.SemiExpanded => "semi-expanded",
+        global::Windows.UI.Text.FontStretch.Expanded => "expanded",
+        global::Windows.UI.Text.FontStretch.ExtraExpanded => "extra-expanded",
+        global::Windows.UI.Text.FontStretch.UltraExpanded => "ultra-expanded",
+        _ => string.Empty
+    };
 }
