@@ -93,7 +93,14 @@ public sealed class DiagPage : Page
             : $"SELECTION: FAIL — {selectionMessage}");
         Console.Out.Flush();
 
-        var allPass = hasInlineFragment && multiLinePass && selectionPass;
+        // ── Document model tests ────────────────────────────────────────
+        var documentsPass = CheckDocumentModel(out var documentsMessage);
+        Console.WriteLine(documentsPass
+            ? $"DOCUMENTS: PASS — {documentsMessage}"
+            : $"DOCUMENTS: FAIL — {documentsMessage}");
+        Console.Out.Flush();
+
+        var allPass = hasInlineFragment && multiLinePass && selectionPass && documentsPass;
         Console.WriteLine(allPass ? "RESULT: PASS" : "RESULT: FAIL");
         Console.Out.Flush();
 
@@ -235,5 +242,120 @@ public sealed class DiagPage : Page
         message =
             $"headingSelection={headingSelection.Height:F1}, headingText={headingText.DesiredSize.Height:F1}, bodySelection={bodySelection.Height:F1}, bodyText={bodyText.DesiredSize.Height:F1}, baseLineHeight={rtb.LineHeight:F1}";
         return headingPass && bodyPass;
+    }
+
+    private static bool CheckDocumentModel(out string message)
+    {
+        try
+        {
+            var span = new Span();
+            var run = new Run { Text = "hello" };
+            span.Inlines.Add(run);
+            if (span.Inlines.Count != 1 || !ReferenceEquals(span.Inlines[0], run))
+            {
+                message = "Span did not own its inline collection";
+                return false;
+            }
+
+            var bold = new Bold(new Run("bold"));
+            if (bold.Inlines.Count != 1)
+            {
+                message = "Bold did not own its child inline";
+                return false;
+            }
+
+            var italic = new Italic(new Run("italic"));
+            if (italic.Inlines.Count != 1)
+            {
+                message = "Italic did not own its child inline";
+                return false;
+            }
+
+            var firstInline = new Run("one");
+            var secondInline = new Run("two");
+            span.Inlines.Clear();
+            span.Inlines.Add(firstInline);
+            span.Inlines.Add(secondInline);
+            span.Inlines.Remove(firstInline);
+            if (span.Inlines.Count != 1 || !ReferenceEquals(span.Inlines[0], secondInline))
+            {
+                message = "Span did not track inline removal";
+                return false;
+            }
+
+            var constructedRun = new Run("hello");
+            if (constructedRun.Text != "hello")
+            {
+                message = $"Run text was '{constructedRun.Text}'";
+                return false;
+            }
+
+            var section = new Section();
+            var paragraph = new Paragraph(new Run("hello"));
+            section.Blocks.Add(paragraph);
+            if (section.Blocks.Count != 1 || !ReferenceEquals(section.Blocks[0], paragraph))
+            {
+                message = "Section did not own its block collection";
+                return false;
+            }
+
+            var firstBlock = new Paragraph(new Run("one"));
+            var secondBlock = new Paragraph(new Run("two"));
+            section.Blocks.Clear();
+            section.Blocks.Add(firstBlock);
+            section.Blocks.Add(secondBlock);
+            section.Blocks.Remove(firstBlock);
+            if (section.Blocks.Count != 1 || !ReferenceEquals(section.Blocks[0], secondBlock))
+            {
+                message = "Section did not track block removal";
+                return false;
+            }
+
+            var list = new System.Windows.Documents.List();
+            var item = new ListItem(new Paragraph(new Run("hello")));
+            list.ListItems.Add(item);
+            if (list.ListItems.Count != 1 || !ReferenceEquals(list.ListItems[0], item) || item.Blocks.Count != 1)
+            {
+                message = "List did not own its list item collection";
+                return false;
+            }
+
+            var document = new FlowDocument();
+            var documentParagraph = new Paragraph(new Run("hello"));
+            document.Blocks.Add(documentParagraph);
+            if (document.Blocks.Count != 1 || !ReferenceEquals(document.Blocks[0], documentParagraph))
+            {
+                message = "FlowDocument did not own its block collection";
+                return false;
+            }
+
+            var host = new FakeTextLayoutHost();
+            document.TextLayoutHost = host;
+            if (!ReferenceEquals(document.TextLayoutHost, host))
+            {
+                message = "FlowDocument did not retain its text layout host";
+                return false;
+            }
+
+            message = "inline, block, list, and flow document checks passed";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            message = $"{ex.GetType().Name}: {ex.Message}";
+            return false;
+        }
+    }
+
+    private sealed class FakeTextLayoutHost : ITextLayoutHost
+    {
+        public object RenderScope => new();
+        public bool IsLayoutValid => true;
+        public double ViewportWidth => 0;
+        public double ViewportHeight => 0;
+        public double ExtentHeight => 0;
+        public void InvalidateLayout()
+        {
+        }
     }
 }
