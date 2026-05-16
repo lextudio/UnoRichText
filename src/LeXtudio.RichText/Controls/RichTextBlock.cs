@@ -937,20 +937,7 @@ public class RichTextBlock : Panel
                     blockProps = blockProps with { FontSize = bp.FontSize };
                 if (InheritedProperties.IsExplicitFontWeight(bp.FontWeight))
                 {
-                    var normalizedWeight = bp.FontWeight.Weight switch
-                    {
-                        100 => FontWeights.Thin,
-                        200 => FontWeights.ExtraLight,
-                        300 => FontWeights.Light,
-                        400 => FontWeights.Normal,
-                        500 => FontWeights.Medium,
-                        600 => FontWeights.SemiBold,
-                        700 => FontWeights.Bold,
-                        800 => FontWeights.ExtraBold,
-                        900 => FontWeights.Black,
-                        _ => FontWeights.Normal
-                    };
-                    blockProps = blockProps with { FontWeight = normalizedWeight };
+                    blockProps = blockProps with { FontWeight = InheritedProperties.ConvertFontWeight(bp.FontWeight) };
                 }
                 if (InheritedProperties.IsExplicitFontFamily(bp.FontFamily))
                     blockProps = blockProps with { FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(bp.FontFamily!.ToString()) };

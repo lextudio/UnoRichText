@@ -63,19 +63,21 @@ internal record InheritedProperties(
         TextDecorations = inline is Underline ? TextDecorations | global::Windows.UI.Text.TextDecorations.Underline : TextDecorations,
     };
 
-    private static FontWeight ConvertFontWeight(FontWeight wpfWeight)
+    internal static global::Windows.UI.Text.FontWeight ConvertFontWeight(FontWeight wpfWeight)
     {
         return wpfWeight.Weight switch
         {
             100 => FontWeights.Thin,
             200 => FontWeights.ExtraLight,
             300 => FontWeights.Light,
+            350 => FontWeights.SemiLight,
             400 => FontWeights.Normal,
             500 => FontWeights.Medium,
             600 => FontWeights.SemiBold,
             700 => FontWeights.Bold,
             800 => FontWeights.ExtraBold,
             900 => FontWeights.Black,
+            950 => FontWeights.ExtraBlack,
             _ => FontWeights.Normal
         };
     }
