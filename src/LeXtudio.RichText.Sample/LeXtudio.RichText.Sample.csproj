@@ -21,5 +21,7 @@
 
   <ItemGroup>
     <PackageReference Include="Tmds.DBus.Protocol" />
+    <PackageReference Include="LeXtudio.UnoPropertyGrid" />
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.Sizers" />
   </ItemGroup>
 </Project>

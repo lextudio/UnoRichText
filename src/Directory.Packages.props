@@ -8,5 +8,7 @@
     <PackageVersion Include="Pretext.Uno" Version="0.1.0" />
     <PackageVersion Include="LeXtudio.Windows" Version="0.6.11" />
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.92.0" />
+    <PackageVersion Include="LeXtudio.UnoPropertyGrid" Version="0.3.1" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Controls.Sizers" Version="8.2.251219" />
   </ItemGroup>
 </Project>

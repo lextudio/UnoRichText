@@ -431,7 +431,9 @@ public class RichTextBlock : Panel
         _flatItemCharOffsets = BuildCharOffsets(flatItems);
 
         // Split flat items at \n boundaries; each segment gets its own PreparedRichInline.
-        double maxWidth = double.IsPositiveInfinity(availableSize.Width) ? 9999 : availableSize.Width;
+        double maxWidth = TextWrapping == TextWrapping.NoWrap
+            ? 9999
+            : double.IsPositiveInfinity(availableSize.Width) ? 9999 : availableSize.Width;
         var segments = new List<PreparedSegment>();
         var segStart = 0;
         for (var i = 0; i <= flatItems.Count; i++)
