@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
+using CommunityToolkit.WinUI.Controls;
 using UnoPropertyGrid;
 using Windows.UI;
 using LeXtudioRTB = LeXtudio.UI.Xaml.Controls.RichTextBlock;
@@ -16,9 +17,6 @@ namespace LeXtudio.RichText.Sample;
 public sealed class MainPage : Page
 {
     private readonly LeXtudioRTB _liveRichTextBlock;
-    private readonly Border _propertyPanelWrapper;
-    private readonly TextBlock _panelWidthLabel;
-    private double _propertyPanelWidth = 360;
 
     public MainPage()
     {
@@ -32,21 +30,6 @@ public sealed class MainPage : Page
             Margin = new Thickness(0, 8, 0, 0)
         };
 
-        _panelWidthLabel = new TextBlock
-        {
-            Text = $"Property panel width: {_propertyPanelWidth:F0}px",
-            Opacity = 0.8
-        };
-
-        var widthSlider = new Slider
-        {
-            Minimum = 280,
-            Maximum = 640,
-            Value = _propertyPanelWidth,
-            Margin = new Thickness(0, 6, 0, 0)
-        };
-        widthSlider.ValueChanged += OnWidthSliderValueChanged;
-
         var rightPanelContent = new Grid { RowSpacing = 12 };
         rightPanelContent.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         rightPanelContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -59,23 +42,17 @@ public sealed class MainPage : Page
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             Margin = new Thickness(0, 0, 0, 4)
         });
-        headerPanel.Children.Add(_panelWidthLabel);
-        headerPanel.Children.Add(widthSlider);
 
-        var propertyScroll = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = propertyGrid
-        };
+        propertyGrid.VerticalAlignment = VerticalAlignment.Stretch;
+        propertyGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
 
         rightPanelContent.Children.Add(headerPanel);
-        rightPanelContent.Children.Add(propertyScroll);
-        Grid.SetRow(propertyScroll, 1);
+        rightPanelContent.Children.Add(propertyGrid);
+        Grid.SetRow(headerPanel, 0);
+        Grid.SetRow(propertyGrid, 1);
 
-        _propertyPanelWrapper = new Border
+        var propertyPanelWrapper = new Border
         {
-            Width = _propertyPanelWidth,
             Child = rightPanelContent,
             Padding = new Thickness(16),
             Background = new SolidColorBrush(Color.FromArgb(255, 250, 250, 250)),
@@ -85,8 +62,10 @@ public sealed class MainPage : Page
 
         var root = new Grid { Padding = new Thickness(24), ColumnSpacing = 16 };
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 420 });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 200 });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var propertyPanelColumn = new ColumnDefinition { Width = new GridLength(320), MinWidth = 200 };
+        root.ColumnDefinitions.Add(propertyPanelColumn);
 
         var leftPanel = new StackPanel { Spacing = 24 };
         leftPanel.Children.Add(SectionLabel("Live RichTextBlock Preview"));
@@ -120,19 +99,23 @@ public sealed class MainPage : Page
         };
 
         Grid.SetColumn(leftScroller, 0);
-        Grid.SetColumn(_propertyPanelWrapper, 1);
+
+        var splitter = new GridSplitter
+        {
+            Width = 8,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            ResizeDirection = GridSplitter.GridResizeDirection.Columns,
+            Background = new SolidColorBrush(Color.FromArgb(64, 128, 128, 128))
+        };
+        Grid.SetColumn(splitter, 1);
+        Grid.SetColumn(propertyPanelWrapper, 2);
 
         root.Children.Add(leftScroller);
-        root.Children.Add(_propertyPanelWrapper);
+        root.Children.Add(splitter);
+        root.Children.Add(propertyPanelWrapper);
 
         Content = root;
-    }
-
-    private void OnWidthSliderValueChanged(object sender, RangeBaseValueChangedEventArgs e)
-    {
-        _propertyPanelWidth = e.NewValue;
-        _propertyPanelWrapper.Width = _propertyPanelWidth;
-        _panelWidthLabel.Text = $"Property panel width: {_propertyPanelWidth:F0}px";
     }
 
     private static TextBlock SectionLabel(string text) => new()
@@ -156,11 +139,11 @@ public sealed class MainPage : Page
         paragraph.Inlines.Add(new Run { Text = "This sample shows a live " });
         paragraph.Inlines.Add(new Run { Text = "RichTextBlock", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         paragraph.Inlines.Add(new Run { Text = " preview. Use the property grid on the right to adjust properties such as " });
-        paragraph.Inlines.Add(new Run { Text = "FontSize", FontStyle = Windows.UI.Text.FontStyle.Italic });
+        paragraph.Inlines.Add(new Run { Text = "FontSize", FontStyle = global::Windows.UI.Text.FontStyle.Italic });
         paragraph.Inlines.Add(new Run { Text = ", " });
-        paragraph.Inlines.Add(new Run { Text = "Foreground", FontStyle = Windows.UI.Text.FontStyle.Italic });
+        paragraph.Inlines.Add(new Run { Text = "Foreground", FontStyle = global::Windows.UI.Text.FontStyle.Italic });
         paragraph.Inlines.Add(new Run { Text = ", or " });
-        paragraph.Inlines.Add(new Run { Text = "LineHeight", FontStyle = Windows.UI.Text.FontStyle.Italic });
+        paragraph.Inlines.Add(new Run { Text = "LineHeight", FontStyle = global::Windows.UI.Text.FontStyle.Italic });
         paragraph.Inlines.Add(new Run { Text = "." });
 
         var secondParagraph = new Paragraph();

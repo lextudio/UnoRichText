@@ -498,6 +498,7 @@ public class RichTextBlock : Panel
 
     protected override Size ArrangeOverride(Size finalSize)
     {
+        DiagLog($"ArrangeOverride enter finalSize={finalSize.Width:F1}x{finalSize.Height:F1} segs={_preparedSegments.Length} foreground={Foreground}");
         _canvas.Children.Clear();
         _placedFragments.Clear();
 
@@ -577,6 +578,7 @@ public class RichTextBlock : Panel
                     else
                     {
                         var textItem = (TextRunItem)flatItem;
+                        var fragForeground = CloneBrush(textItem.Props.Foreground);
                         var tb = new Microsoft.UI.Xaml.Controls.TextBlock
                         {
                             Text = fragment.Text,
@@ -584,9 +586,12 @@ public class RichTextBlock : Panel
                             FontSize = textItem.Props.FontSize,
                             FontWeight = textItem.Props.FontWeight,
                             FontStyle = textItem.Props.FontStyle,
-                            Foreground = textItem.Props.Foreground,
+                            FontStretch = textItem.Props.FontStretch,
+                            CharacterSpacing = textItem.Props.CharacterSpacing,
                             TextWrapping = TextWrapping.NoWrap,
                         };
+                        tb.Foreground = fragForeground;
+                        DiagLog($"  frag tb created text=\"{fragment.Text}\" requested={fragForeground} actual={tb.Foreground}");
                         tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
                         fragmentWidth = tb.DesiredSize.Width > 0 ? tb.DesiredSize.Width : fragment.OccupiedWidth;
                         if (tb.DesiredSize.Height > 0)
@@ -650,6 +655,8 @@ public class RichTextBlock : Panel
         _canvas.Width = finalSize.Width;
         _canvas.Height = _totalHeight;
         _canvas.Arrange(new Rect(0, 0, finalSize.Width, _totalHeight));
+        var firstTb = _canvas.Children.OfType<Microsoft.UI.Xaml.Controls.TextBlock>().FirstOrDefault();
+        DiagLog($"ArrangeOverride exit canvasChildren={_canvas.Children.Count} firstTbForeground={firstTb?.Foreground} firstTbText=\"{firstTb?.Text}\"");
         return new Size(finalSize.Width, _totalHeight);
     }
 
@@ -659,19 +666,30 @@ public class RichTextBlock : Panel
 
         if ((decorations & TextDecorations.Strikethrough) != 0)
         {
-            var r = new Rectangle { Width = width, Height = 1, Fill = foreground };
+            var r = new Rectangle { Width = width, Height = 1, Fill = CloneBrush(foreground) };
             Canvas.SetLeft(r, x);
             Canvas.SetTop(r, y + lineHeight * 0.55);
             _canvas.Children.Add(r);
         }
         if ((decorations & TextDecorations.Underline) != 0)
         {
-            var r = new Rectangle { Width = width, Height = 1, Fill = foreground };
+            var r = new Rectangle { Width = width, Height = 1, Fill = CloneBrush(foreground) };
             Canvas.SetLeft(r, x);
             Canvas.SetTop(r, y + lineHeight * 0.88);
             _canvas.Children.Add(r);
         }
     }
+
+    // A Brush DependencyObject in WinUI/Uno has a single inheritance context. A brush bound to
+    // RichTextBlock.Foreground is already "owned" by this control; assigning that same instance
+    // to a child element's Foreground/Fill is silently ignored on subsequent layout passes, so
+    // the child keeps its default color. Cloning produces a fresh, unparented brush per child.
+    private static Brush? CloneBrush(Brush? brush) => brush switch
+    {
+        null => null,
+        SolidColorBrush scb => new SolidColorBrush(scb.Color) { Opacity = scb.Opacity },
+        _ => brush
+    };
 
     // ── Text selection ────────────────────────────────────────────────
 
@@ -901,6 +919,7 @@ public class RichTextBlock : Panel
 
     private void CollectFlatItems(List<FlatItem> result, InheritedProperties root)
     {
+        DiagLog($"CollectFlatItems: root.Foreground={root.Foreground} blocks={_blocks.Count} inlines={_inlines.Count}");
         if (_inlines.Count > 0)
         {
             FlattenInlines(_inlines, result, root);
@@ -914,8 +933,9 @@ public class RichTextBlock : Panel
             if (_blocks[i] is Paragraph bp)
             {
                 var blockProps = root;
-                if (!double.IsNaN(bp.FontSize)) blockProps = blockProps with { FontSize = bp.FontSize };
-                if (bp.FontWeight.Weight != 400)
+                if (InheritedProperties.IsExplicitFontSize(bp.FontSize))
+                    blockProps = blockProps with { FontSize = bp.FontSize };
+                if (InheritedProperties.IsExplicitFontWeight(bp.FontWeight))
                 {
                     var normalizedWeight = bp.FontWeight.Weight switch
                     {
@@ -932,9 +952,14 @@ public class RichTextBlock : Panel
                     };
                     blockProps = blockProps with { FontWeight = normalizedWeight };
                 }
-                if (bp.FontFamily is not null)
-                    blockProps = blockProps with { FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(bp.FontFamily.ToString()) };
-                if (bp.Foreground is not null) blockProps = blockProps with { Foreground = bp.Foreground };
+                if (InheritedProperties.IsExplicitFontFamily(bp.FontFamily))
+                    blockProps = blockProps with { FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(bp.FontFamily!.ToString()) };
+                if (InheritedProperties.IsExplicitFontStretch(bp.FontStretch))
+                    blockProps = blockProps with { FontStretch = bp.FontStretch };
+                if (InheritedProperties.IsExplicitCharacterSpacing(bp.CharacterSpacing))
+                    blockProps = blockProps with { CharacterSpacing = bp.CharacterSpacing };
+                if (InheritedProperties.IsExplicitForeground(bp.Foreground))
+                    blockProps = blockProps with { Foreground = bp.Foreground! };
                 FlattenInlines(bp.Inlines, result, blockProps);
             }
         }
@@ -945,7 +970,7 @@ public class RichTextBlock : Panel
     private double ResolvedLineHeight => LineHeight > 0 ? LineHeight : FontSize * 1.4;
 
     private InheritedProperties RootProperties() => new(
-        FontFamily, FontSize, FontWeight, FontStyle, Foreground, TextDecorations.None);
+        FontFamily, FontSize, FontWeight, FontStyle, FontStretch, CharacterSpacing, Foreground, TextDecorations.None);
 
     private void OnContentChanged(object? sender, NotifyCollectionChangedEventArgs e)
         => InvalidateMeasure();
@@ -976,7 +1001,13 @@ public class RichTextBlock : Panel
     {
         foreach (var inline in inlines)
         {
+            if (DiagnosticsEnabled)
+                File.AppendAllText(IoPath.Combine(IoPath.GetTempPath(), "LeXtudio.RichText.Diag.txt"),
+                    $"[{DateTime.Now:HH:mm:ss.fff}] [flatten owner={(currentLink?.GetHashCode().ToString("X8") ?? "n/a")}] inline={inline.GetType().Name} inline.Foreground={inline.Foreground?.ToString() ?? "<null>"} inherited.Foreground={inherited.Foreground}\n");
             var props = inherited.Merge(inline);
+            if (DiagnosticsEnabled)
+                File.AppendAllText(IoPath.Combine(IoPath.GetTempPath(), "LeXtudio.RichText.Diag.txt"),
+                    $"[flatten]   -> merged.Foreground={props.Foreground}\n");
             switch (inline)
             {
                 case Run run when run.Text.Length > 0:
@@ -1091,7 +1122,10 @@ public class RichTextBlock : Panel
     private static void OnLayoutPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is RichTextBlock block)
+        {
+            block.DiagLog($"OnLayoutPropertyChanged: prop={e.Property} old={e.OldValue} new={e.NewValue}");
             block.InvalidateMeasure();
+        }
     }
 
     private static void OnSelectionVisualPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

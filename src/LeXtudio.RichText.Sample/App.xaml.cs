@@ -17,7 +17,9 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        LeXtudioRTB.DiagnosticsEnabled = DiagMode;
+        LeXtudioRTB.DiagnosticsEnabled = true;
+        global::UnoPropertyGrid.PropertyGridLogger.Enabled = true;
+        global::UnoPropertyGrid.PropertyGridLogger.Reset();
         _window = new MainWindow();
         _window.Content = DiagMode ? new DiagPage() : new MainPage();
         _window.Activate();

@@ -10,16 +10,56 @@ internal record InheritedProperties(
     double FontSize,
     FontWeight FontWeight,
     FontStyle FontStyle,
+    global::Windows.UI.Text.FontStretch FontStretch,
+    int CharacterSpacing,
     Brush Foreground,
     TextDecorations TextDecorations)
 {
+    // The WPF-shim Inline/Block auto-property returns a non-null default Black brush even when
+    // never set, and creates a fresh instance per element so reference-equality to a sentinel
+    // doesn't work. As a pragmatic compromise we treat "SolidColorBrush(Black)" as "not set"
+    // and inherit from the parent. The trade-off: explicitly setting Foreground = Brushes.Black
+    // on a child to override a non-black inherited value won't be honored.
+    internal static bool IsExplicitForeground(Brush? brush) =>
+        brush is not null && !(brush is SolidColorBrush scb && scb.Color == Microsoft.UI.Colors.Black);
+
+    // Probe the shim's default values once so we can detect "user explicitly set" per font prop.
+    // Same trade-off as Foreground: a user explicitly assigning the default value won't override
+    // a differing inherited value.
+    private static readonly Run _shimProbe = new();
+    internal static readonly FontFamily? DefaultShimInlineFontFamily = _shimProbe.FontFamily;
+    internal static readonly double DefaultShimInlineFontSize = _shimProbe.FontSize;
+    internal static readonly global::Windows.UI.Text.FontWeight DefaultShimInlineFontWeight = _shimProbe.FontWeight;
+    internal static readonly global::Windows.UI.Text.FontStyle DefaultShimInlineFontStyle = _shimProbe.FontStyle;
+    internal static readonly global::Windows.UI.Text.FontStretch DefaultShimInlineFontStretch = _shimProbe.FontStretch;
+    internal static readonly int DefaultShimInlineCharacterSpacing = _shimProbe.CharacterSpacing;
+
+    internal static bool IsExplicitFontFamily(FontFamily? f) =>
+        f is not null && f.Source != (DefaultShimInlineFontFamily?.Source ?? string.Empty);
+    internal static bool IsExplicitFontSize(double size) =>
+        !double.IsNaN(size) && size != DefaultShimInlineFontSize;
+    internal static bool IsExplicitFontWeight(global::Windows.UI.Text.FontWeight w) =>
+        w.Weight != DefaultShimInlineFontWeight.Weight;
+    internal static bool IsExplicitFontStyle(global::Windows.UI.Text.FontStyle s) =>
+        s != DefaultShimInlineFontStyle;
+    internal static bool IsExplicitFontStretch(global::Windows.UI.Text.FontStretch s) =>
+        s != DefaultShimInlineFontStretch;
+    internal static bool IsExplicitCharacterSpacing(int v) =>
+        v != DefaultShimInlineCharacterSpacing;
+
     internal InheritedProperties Merge(Inline inline) => this with
     {
-        FontFamily      = inline.FontFamily ?? FontFamily,
-        FontSize        = double.IsNaN(inline.FontSize) ? FontSize : inline.FontSize,
-        FontWeight      = inline is Bold ? FontWeights.Bold : ConvertFontWeight(inline.FontWeight),
-        FontStyle       = inline is Italic ? global::Windows.UI.Text.FontStyle.Italic : ConvertFontStyle(inline.FontStyle),
-        Foreground      = inline.Foreground ?? Foreground,
+        FontFamily      = IsExplicitFontFamily(inline.FontFamily) ? inline.FontFamily! : FontFamily,
+        FontSize        = IsExplicitFontSize(inline.FontSize) ? inline.FontSize : FontSize,
+        FontWeight      = inline is Bold ? FontWeights.Bold
+                          : IsExplicitFontWeight(inline.FontWeight) ? ConvertFontWeight(inline.FontWeight)
+                          : FontWeight,
+        FontStyle       = inline is Italic ? global::Windows.UI.Text.FontStyle.Italic
+                          : IsExplicitFontStyle(inline.FontStyle) ? ConvertFontStyle(inline.FontStyle)
+                          : FontStyle,
+        FontStretch     = IsExplicitFontStretch(inline.FontStretch) ? inline.FontStretch : FontStretch,
+        CharacterSpacing = IsExplicitCharacterSpacing(inline.CharacterSpacing) ? inline.CharacterSpacing : CharacterSpacing,
+        Foreground      = IsExplicitForeground(inline.Foreground) ? inline.Foreground! : Foreground,
         TextDecorations = inline is Underline ? TextDecorations | global::Windows.UI.Text.TextDecorations.Underline : TextDecorations,
     };
 
