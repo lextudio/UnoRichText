@@ -33,7 +33,7 @@
   </ItemGroup>
   <ItemGroup Condition="'$(UseNuGetPackage)' != 'true'">
     <ProjectReference Include="..\..\ext\PretextSharp\src\Pretext.Uno\Pretext.Uno.csproj" />
-    <ProjectReference Include="..\..\ext\shims\src\LeXtudio.Windows\LeXtudio.Windows.csproj" />
+    <ProjectReference Include="..\..\..\WindowsShims\src\LeXtudio.Windows\LeXtudio.Windows.csproj" />
   </ItemGroup>
 
   <ItemGroup>

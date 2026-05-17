@@ -13,15 +13,23 @@
     <UnoFeatures>SkiaRenderer;</UnoFeatures>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UseNuGetPackage>true</UseNuGetPackage>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\LeXtudio.RichText\LeXtudio.RichText.csproj" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(UseNuGetPackage)' != 'true'">
+    <ProjectReference Include="..\..\..\UnoPropertyGrid\src\UnoPropertyGrid\UnoPropertyGrid.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseNuGetPackage)' == 'true'">
+    <PackageReference Include="LeXtudio.UnoPropertyGrid" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Tmds.DBus.Protocol" />
-    <PackageReference Include="LeXtudio.UnoPropertyGrid" />
     <PackageReference Include="CommunityToolkit.WinUI.Controls.Sizers" />
   </ItemGroup>
 </Project>
