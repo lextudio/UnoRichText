@@ -353,21 +353,24 @@
                                     ToolTipService.ToolTip="Save file">
                                     <FontIcon Glyph="&#xE74E;" />
                                 </Button>
-                                <Button
+                                <ToggleButton
+                                    x:Name="boldButton"
                                     automation:AutomationProperties.Name="Bold"
                                     Click="BoldButton_Click"
+                                    IsThreeState="True"
                                     RelativePanel.LeftOf="italicButton"
                                     ToolTipService.ToolTip="Bold">
                                     <FontIcon Glyph="&#xE8DD;" />
-                                </Button>
-                                <Button
+                                </ToggleButton>
+                                <ToggleButton
                                     x:Name="italicButton"
                                     automation:AutomationProperties.Name="Italic"
                                     Click="ItalicButton_Click"
+                                    IsThreeState="True"
                                     RelativePanel.LeftOf="fontColorButton"
                                     ToolTipService.ToolTip="Italic">
                                     <FontIcon Glyph="&#xE8DB;" />
-                                </Button>
+                                </ToggleButton>
                                 <DropDownButton
                                     x:Name="fontColorButton"
                                     automation:AutomationProperties.Name="Font color"
@@ -397,6 +400,7 @@
                                     MinWidth="300"
                                     automation:AutomationProperties.Name="Custom editor"
                                     GotFocus="Editor_GotFocus"
+                                    SelectionChanged="Editor_SelectionChanged"
                                     RelativePanel.AlignLeftWithPanel="True"
                                     RelativePanel.AlignRightWithPanel="True"
                                     RelativePanel.Below="openFileButton"

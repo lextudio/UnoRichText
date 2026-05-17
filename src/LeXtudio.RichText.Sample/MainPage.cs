@@ -31,6 +31,7 @@ public sealed partial class MainPage : Page
         MathEditor.Document.SetMathMode(RichEditMathMode.MathOnly);
         mathEditor2.Document.SetMathMode(RichEditMathMode.MathOnly);
         EnsureGalleryRichTextBlocks();
+        UpdateEditorToolbarState();
     }
 
     private void EnsureGalleryRichTextBlocks()
@@ -225,11 +226,13 @@ public sealed partial class MainPage : Page
     private void BoldButton_Click(object sender, RoutedEventArgs e)
     {
         editor.Document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+        UpdateEditorToolbarState();
     }
 
     private void ItalicButton_Click(object sender, RoutedEventArgs e)
     {
         editor.Document.Selection.CharacterFormat.Italic = FormatEffect.Toggle;
+        UpdateEditorToolbarState();
     }
 
     private void ColorButton_Click(object sender, RoutedEventArgs e)
@@ -297,6 +300,8 @@ public sealed partial class MainPage : Page
         {
             documentRange.CharacterFormat.BackgroundColor = background.Color;
         }
+
+        UpdateEditorToolbarState();
     }
 
     private void Editor_TextChanged(object sender, RoutedEventArgs e)
@@ -305,7 +310,29 @@ public sealed partial class MainPage : Page
         {
             editor.Document.Selection.CharacterFormat.ForegroundColor = currentColor;
         }
+
+        UpdateEditorToolbarState();
     }
+
+    private void Editor_SelectionChanged(object sender, RoutedEventArgs e)
+    {
+        UpdateEditorToolbarState();
+    }
+
+    private void UpdateEditorToolbarState()
+    {
+        var format = editor.Document.Selection.CharacterFormat;
+        boldButton.IsChecked = ToNullableBool(format.Bold);
+        italicButton.IsChecked = ToNullableBool(format.Italic);
+    }
+
+    private static bool? ToNullableBool(FormatEffect effect)
+        => effect switch
+        {
+            FormatEffect.On => true,
+            FormatEffect.Off => false,
+            _ => null,
+        };
 
     private void mathEditor2_TextChanged(object sender, RoutedEventArgs e)
     {
