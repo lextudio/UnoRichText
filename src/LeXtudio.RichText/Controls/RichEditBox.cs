@@ -303,10 +303,42 @@ public partial class RichEditBox : ContentControl
         try
         {
             Document.GetText(Microsoft.UI.Text.TextGetOptions.None, out var documentText);
-            if ((documentText ?? string.Empty) != (_editorHost.Text ?? string.Empty))
+            var oldText = documentText ?? string.Empty;
+            var newText = _editorHost.Text ?? string.Empty;
+
+            if (oldText != newText)
             {
-                Document.SetText(Microsoft.UI.Text.TextSetOptions.None, _editorHost.Text);
+                int prefixLength = 0;
+                int maxPrefix = Math.Min(oldText.Length, newText.Length);
+                while (prefixLength < maxPrefix && oldText[prefixLength] == newText[prefixLength])
+                    prefixLength++;
+
+                int oldRemainder = oldText.Length - prefixLength;
+                int newRemainder = newText.Length - prefixLength;
+                int suffixLength = 0;
+                while (suffixLength < oldRemainder
+                    && suffixLength < newRemainder
+                    && oldText[oldText.Length - 1 - suffixLength] == newText[newText.Length - 1 - suffixLength])
+                {
+                    suffixLength++;
+                }
+
+                int deleteStart = prefixLength;
+                int deleteEnd = oldText.Length - suffixLength;
+                string insertedText = newText.Substring(prefixLength, newText.Length - prefixLength - suffixLength);
+
+                LeXtudio.UI.Text.TextCharacterFormat? replacementFormat = null;
+                if (deleteEnd > deleteStart)
+                    replacementFormat = Document.GetCharacterFormat(deleteStart, deleteEnd);
+
+                if (deleteEnd > deleteStart)
+                    Document.DeleteRange(deleteStart, deleteEnd);
+
+                if (insertedText.Length > 0)
+                    Document.InsertText(deleteStart, insertedText, replacementFormat);
             }
+
+            Document.Selection.SetRange(_editorHost.SelectionStart, _editorHost.SelectionStart + _editorHost.SelectionLength);
             RefreshRichRenderOverlay();
             LogDiagnostic($"EditorHostTextChanged after SetText runsAfter={DescribeRuns()} overlay={_renderOverlay.Visibility} opacity={_editorHost.Opacity}");
             RaiseTextChanged(new RoutedEventArgs());

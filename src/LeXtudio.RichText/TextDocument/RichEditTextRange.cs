@@ -70,11 +70,14 @@ internal class RichEditTextRange : ITextRange
         get => (_start >= 0 && _start < _document.Buffer.Length) ? _document.Buffer[_start] : '\0';
         set
         {
-            if (_start >= 0 && _start <= _document.Buffer.Length)
-            {
-                if (_start < _document.Buffer.Length) _document.Buffer.Remove(_start, 1);
-                _document.Buffer.Insert(_start, value);
-            }
+            if (_start < 0 || _start > _document.Buffer.Length)
+                return;
+
+            if (_start < _document.Buffer.Length)
+                _document.DeleteRange(_start, _start + 1);
+
+            _document.InsertText(_start, value.ToString(), _document.GetCharacterFormat(_start, _start));
+            SetRangeCore(_start, _start + 1);
         }
     }
 
@@ -112,18 +115,15 @@ internal class RichEditTextRange : ITextRange
         }
         set
         {
-            int len = Math.Max(0, _end - _start);
-            if (len > 0 && _start >= 0 && _start + len <= _document.Buffer.Length)
-                _document.Buffer.Remove(_start, len);
-            if (!string.IsNullOrEmpty(value))
-            {
-                _document.Buffer.Insert(_start, value);
-                _end = _start + value.Length;
-            }
-            else
-            {
-                _end = _start;
-            }
+            value ??= string.Empty;
+            var replacementFormat = _document.GetCharacterFormat(_start, _end);
+
+            _document.DeleteRange(_start, _end);
+
+            if (value.Length > 0)
+                _document.InsertText(_start, value, replacementFormat);
+
+            _end = _start + value.Length;
         }
     }
 

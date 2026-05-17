@@ -126,6 +126,93 @@ public sealed class RichEditTextDocument
         TextChanged?.Invoke(this, System.EventArgs.Empty);
     }
 
+    internal void InsertText(int offset, string text, TextCharacterFormat? format = null)
+    {
+        text ??= string.Empty;
+        if (text.Length == 0)
+            return;
+
+        offset = Math.Clamp(offset, 0, _buffer.Length);
+        int delta = text.Length;
+
+        TextCharacterFormat? explicitFormat = format is null ? null : (TextCharacterFormat)format.GetClone();
+        bool inheritsFromRun = _characterFormatRuns.Any(run => run.Start < offset && offset <= run.End);
+        if (explicitFormat is null && !inheritsFromRun)
+        {
+            var pristineDefault = new TextCharacterFormat();
+            if (!_defaultCharacterFormat.IsEqual(pristineDefault))
+                explicitFormat = (TextCharacterFormat)_defaultCharacterFormat.GetClone();
+        }
+
+        _buffer.Insert(offset, text);
+
+        var shiftedRuns = new List<CharacterFormatRun>(_characterFormatRuns.Count + 1);
+        foreach (var run in _characterFormatRuns)
+        {
+            if (run.End < offset)
+            {
+                shiftedRuns.Add(run);
+            }
+            else if (run.Start < offset && offset <= run.End)
+            {
+                shiftedRuns.Add(new CharacterFormatRun(run.Start, run.End + delta, (TextCharacterFormat)run.Format.GetClone()));
+            }
+            else
+            {
+                shiftedRuns.Add(new CharacterFormatRun(run.Start + delta, run.End + delta, (TextCharacterFormat)run.Format.GetClone()));
+            }
+        }
+
+        _characterFormatRuns.Clear();
+        _characterFormatRuns.AddRange(MergeAdjacentRuns(shiftedRuns.OrderBy(run => run.Start)));
+
+        if (explicitFormat is not null)
+            ApplyCharacterFormat(offset, offset + delta, explicitFormat);
+
+        TextChanged?.Invoke(this, System.EventArgs.Empty);
+    }
+
+    internal void DeleteRange(int start, int end)
+    {
+        start = Math.Clamp(start, 0, _buffer.Length);
+        end = Math.Clamp(end, start, _buffer.Length);
+        if (end <= start)
+            return;
+
+        int deletedLength = end - start;
+        _buffer.Remove(start, deletedLength);
+
+        var nextRuns = new List<CharacterFormatRun>(_characterFormatRuns.Count);
+        foreach (var run in _characterFormatRuns)
+        {
+            if (run.End <= start)
+            {
+                nextRuns.Add(run);
+                continue;
+            }
+
+            if (run.Start >= end)
+            {
+                nextRuns.Add(new CharacterFormatRun(run.Start - deletedLength, run.End - deletedLength, (TextCharacterFormat)run.Format.GetClone()));
+                continue;
+            }
+
+            int leftKeep = Math.Max(0, start - run.Start);
+            int rightKeep = Math.Max(0, run.End - end);
+            int keptLength = leftKeep + rightKeep;
+            if (keptLength == 0)
+                continue;
+
+            int newStart = Math.Min(run.Start, start);
+            nextRuns.Add(new CharacterFormatRun(newStart, newStart + keptLength, (TextCharacterFormat)run.Format.GetClone()));
+        }
+
+        _characterFormatRuns.Clear();
+        _characterFormatRuns.AddRange(MergeAdjacentRuns(nextRuns.OrderBy(run => run.Start)));
+        _selection.SetRange(Math.Min(_selection.StartPosition, _buffer.Length), Math.Min(_selection.EndPosition, _buffer.Length));
+        TextChanged?.Invoke(this, System.EventArgs.Empty);
+    }
+
     public void ClearUndoRedoHistory() { /* TODO: clear undo stack */ }
     public void SetMathMode(RichEditMathMode mode) => MathMode = mode;
     public RichEditMathMode GetMathMode() => MathMode;

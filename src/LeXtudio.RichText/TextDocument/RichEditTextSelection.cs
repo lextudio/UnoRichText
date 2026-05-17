@@ -52,8 +52,18 @@ internal sealed class RichEditTextSelection : RichEditTextRange, ITextSelection
     public void TypeText(string value)
     {
         if (string.IsNullOrEmpty(value)) return;
-        Text = value;
-        int newPos = StartPosition + value.Length;
+
+        int start = StartPosition;
+        int end = EndPosition;
+
+        TextCharacterFormat? replacementFormat = null;
+        if (end > start)
+            replacementFormat = _document.GetCharacterFormat(start, end);
+
+        _document.DeleteRange(start, end);
+        _document.InsertText(start, value, replacementFormat);
+
+        int newPos = start + value.Length;
         SetRange(newPos, newPos);
     }
 }
