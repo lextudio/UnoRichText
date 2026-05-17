@@ -14,6 +14,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Microsoft.UI.Text;
 using global::Windows.Storage.Streams;
 using ITextRange = Microsoft.UI.Text.ITextRange;
 using ITextSelection = Microsoft.UI.Text.ITextSelection;
@@ -49,9 +50,11 @@ public sealed class RichEditTextDocument
     private readonly Stack<EditOperation> _redoStack = new();
     private readonly RichEditTextSelection _selection;
     private TextCharacterFormat _defaultCharacterFormat = new();
+    private TextCharacterFormat? _caretInputFormat;
     private TextParagraphFormat _defaultParagraphFormat = new();
     private int _batchCount;
     private bool _isReplayingHistory;
+    private int _preserveCaretInputFormatDepth;
 
     public RichEditTextDocument()
     {
@@ -65,6 +68,9 @@ public sealed class RichEditTextDocument
     public ITextSelection Selection => _selection;
 
     internal StringBuilder Buffer => _buffer;
+
+    internal IDisposable PreserveCaretInputFormatScope()
+        => new CaretInputFormatScope(this);
 
     public bool CanCopy() => _selection.Length > 0;
     public bool CanPaste() => true;
@@ -160,6 +166,9 @@ public sealed class RichEditTextDocument
         int delta = text.Length;
 
         TextCharacterFormat? explicitFormat = format is null ? null : (TextCharacterFormat)format.GetClone();
+        if (explicitFormat is null && _caretInputFormat is not null)
+            explicitFormat = (TextCharacterFormat)_caretInputFormat.GetClone();
+
         bool inheritsFromRun = _characterFormatRuns.Any(run => run.Start < offset && offset <= run.End);
         if (explicitFormat is null && !inheritsFromRun)
         {
@@ -282,12 +291,15 @@ public sealed class RichEditTextDocument
         start = Math.Clamp(start, 0, _buffer.Length);
         end = Math.Clamp(end, start, _buffer.Length);
 
-        var format = (TextCharacterFormat)_defaultCharacterFormat.GetClone();
-        var run = _characterFormatRuns.FirstOrDefault(item => item.Start <= start && item.End > start);
-        if (run is not null)
-            format.SetClone(run.Format);
+        if (start == end
+            && _caretInputFormat is not null
+            && _selection.StartPosition == start
+            && _selection.EndPosition == end)
+        {
+            return (TextCharacterFormat)_caretInputFormat.GetClone();
+        }
 
-        return format;
+        return GetCharacterFormatIgnoringCaretInput(start);
     }
 
     internal void ApplyCharacterFormat(int start, int end, TextCharacterFormat format)
@@ -297,11 +309,16 @@ public sealed class RichEditTextDocument
 
         if (start == end)
         {
-            var nextDefault = ResolveToggleValues(_defaultCharacterFormat, format);
-            _defaultCharacterFormat = nextDefault;
+            var current = GetCharacterFormatIgnoringCaretInput(start);
+            if (_caretInputFormat is not null)
+                current = (TextCharacterFormat)_caretInputFormat.GetClone();
+
+            _caretInputFormat = ResolveToggleValues(current, format);
             FormattingChanged?.Invoke(this, System.EventArgs.Empty);
             return;
         }
+
+        _caretInputFormat = null;
 
         var nextFormat = ResolveToggleValues(GetCharacterFormat(start, end), format);
         var nextRuns = new List<CharacterFormatRun>();
@@ -374,7 +391,8 @@ public sealed class RichEditTextDocument
         => new(
             _buffer.ToString(),
             CloneRuns(_characterFormatRuns),
-            (TextCharacterFormat)_defaultCharacterFormat.GetClone());
+            (TextCharacterFormat)_defaultCharacterFormat.GetClone(),
+            _caretInputFormat is null ? null : (TextCharacterFormat)_caretInputFormat.GetClone());
 
     private List<RichEditCharacterFormatRun> CaptureRunsInRange(int start, int end)
     {
@@ -411,6 +429,7 @@ public sealed class RichEditTextDocument
             _characterFormatRuns.AddRange(CloneRuns(snapshot.Runs));
 
             _defaultCharacterFormat = (TextCharacterFormat)snapshot.DefaultCharacterFormat.GetClone();
+            _caretInputFormat = snapshot.CaretInputFormat is null ? null : (TextCharacterFormat)snapshot.CaretInputFormat.GetClone();
             _selection.SetRange(Math.Min(_selection.StartPosition, _buffer.Length), Math.Min(_selection.EndPosition, _buffer.Length));
         }
         finally
@@ -422,8 +441,50 @@ public sealed class RichEditTextDocument
         FormattingChanged?.Invoke(this, System.EventArgs.Empty);
     }
 
+    internal void NotifySelectionRangeChanged(int oldStart, int oldEnd, int newStart, int newEnd)
+    {
+        if (_preserveCaretInputFormatDepth > 0)
+            return;
+
+        if (oldStart != newStart || oldEnd != newEnd)
+            _caretInputFormat = null;
+    }
+
+    private TextCharacterFormat GetCharacterFormatIgnoringCaretInput(int position)
+    {
+        position = Math.Clamp(position, 0, _buffer.Length);
+
+        var format = (TextCharacterFormat)_defaultCharacterFormat.GetClone();
+        var run = _characterFormatRuns.FirstOrDefault(item => item.Start <= position && item.End > position);
+        if (run is not null)
+            format.SetClone(run.Format);
+
+        return format;
+    }
+
+    private sealed class CaretInputFormatScope : IDisposable
+    {
+        private readonly RichEditTextDocument _owner;
+        private bool _disposed;
+
+        public CaretInputFormatScope(RichEditTextDocument owner)
+        {
+            _owner = owner;
+            _owner._preserveCaretInputFormatDepth++;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+            _owner._preserveCaretInputFormatDepth = Math.Max(0, _owner._preserveCaretInputFormatDepth - 1);
+        }
+    }
+
     private sealed record CharacterFormatRun(int Start, int End, TextCharacterFormat Format);
-    private sealed record DocumentSnapshot(string Text, List<CharacterFormatRun> Runs, TextCharacterFormat DefaultCharacterFormat);
+    private sealed record DocumentSnapshot(string Text, List<CharacterFormatRun> Runs, TextCharacterFormat DefaultCharacterFormat, TextCharacterFormat? CaretInputFormat);
     private sealed record EditOperation(
         int Start,
         string DeletedText,

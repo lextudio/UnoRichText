@@ -203,6 +203,42 @@ public sealed class RichEditTextDocumentTests
         AssertText(document, "aYbc");
     }
 
+    [Test]
+    public void CaretInputFormat_PrefersCaretOverDefault()
+    {
+        var document = CreateDocument(string.Empty);
+
+        var defaultFormat = (LeXtudio.UI.Text.TextCharacterFormat)document.GetDefaultCharacterFormat();
+        defaultFormat.Bold = FormatEffect.Off;
+        document.SetDefaultCharacterFormat(defaultFormat);
+
+        document.Selection.SetRange(0, 0);
+        document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+        document.Selection.TypeText("x");
+
+        AssertText(document, "x");
+        AssertBoldRuns(document, (0, 1));
+    }
+
+    [Test]
+    public void CaretInputFormat_ClearsWhenCaretMoves()
+    {
+        var document = CreateDocument(string.Empty);
+
+        document.Selection.SetRange(0, 0);
+        document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+        document.Selection.TypeText("x");
+        AssertBoldRuns(document, (0, 1));
+
+        document.Selection.MoveLeft(TextRangeUnit.Character, 1, false);
+        document.Selection.TypeText("y");
+
+        AssertText(document, "yx");
+        var runs = document.GetCharacterFormatRuns().Where(run => run.Format.Bold == FormatEffect.On).ToList();
+        Assert.That(runs, Has.Count.EqualTo(1));
+        Assert.That((runs[0].Start, runs[0].End), Is.EqualTo((1, 2)));
+    }
+
     private static RichEditDocument CreateDocument(string text)
     {
         var document = new RichEditDocument();

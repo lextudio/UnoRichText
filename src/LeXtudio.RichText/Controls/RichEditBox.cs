@@ -338,7 +338,8 @@ public partial class RichEditBox : ContentControl
                     Document.InsertText(deleteStart, insertedText, replacementFormat);
             }
 
-            Document.Selection.SetRange(_editorHost.SelectionStart, _editorHost.SelectionStart + _editorHost.SelectionLength);
+            using (Document.PreserveCaretInputFormatScope())
+                Document.Selection.SetRange(_editorHost.SelectionStart, _editorHost.SelectionStart + _editorHost.SelectionLength);
             RefreshRichRenderOverlay();
             LogDiagnostic($"EditorHostTextChanged after SetText runsAfter={DescribeRuns()} overlay={_renderOverlay.Visibility} opacity={_editorHost.Opacity}");
             RaiseTextChanged(new RoutedEventArgs());

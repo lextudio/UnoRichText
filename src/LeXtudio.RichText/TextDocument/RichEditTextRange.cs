@@ -203,6 +203,8 @@ internal class RichEditTextRange : ITextRange
 
     private void SetRangeCore(int start, int end)
     {
+        int previousStart = _start;
+        int previousEnd = _end;
         int max = _document.Buffer.Length;
         if (start < 0) start = 0;
         if (end < 0) end = 0;
@@ -211,6 +213,9 @@ internal class RichEditTextRange : ITextRange
         if (end < start) end = start;
         _start = start;
         _end = end;
+
+        if (this is RichEditTextSelection)
+            _document.NotifySelectionRangeChanged(previousStart, previousEnd, _start, _end);
     }
 
     private void AttachCharacterFormat(TextCharacterFormat format)

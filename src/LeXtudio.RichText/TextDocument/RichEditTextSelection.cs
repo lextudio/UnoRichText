@@ -64,6 +64,7 @@ internal sealed class RichEditTextSelection : RichEditTextRange, ITextSelection
         _document.InsertText(start, value, replacementFormat);
 
         int newPos = start + value.Length;
-        SetRange(newPos, newPos);
+        using (_document.PreserveCaretInputFormatScope())
+            SetRange(newPos, newPos);
     }
 }
