@@ -20,10 +20,13 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         LeXtudioRTB.DiagnosticsEnabled = true;
-        LeXtudioREB.DiagnosticsEnabled = true;
-        LeXtudioTextBox.DiagnosticsEnabled = true;
-        ResetRichTextDiagnosticLog("LeXtudio.RichText.RichEditBox.log");
-        ResetRichTextDiagnosticLog("LeXtudio.RichText.TextBox.log");
+        LeXtudioREB.DiagnosticsEnabled = DiagMode;
+        LeXtudioTextBox.DiagnosticsEnabled = DiagMode;
+        if (DiagMode)
+        {
+            ResetRichTextDiagnosticLog("LeXtudio.RichText.RichEditBox.log");
+            ResetRichTextDiagnosticLog("LeXtudio.RichText.TextBox.log");
+        }
         global::UnoPropertyGrid.PropertyGridLogger.Enabled = true;
         global::UnoPropertyGrid.PropertyGridLogger.Reset();
         _window = new MainWindow();

@@ -232,6 +232,269 @@ public sealed class RichEditTextDocumentTests
     }
 
     [Test]
+    public void UndoBoldToggle_RestoresPlainRunsAndPreservesText()
+    {
+        // Workflow: type "Hi", select "Hi", Ctrl+B, Ctrl+Z.
+        // Expectation: text remains "Hi", bold run is gone, selection (0..2) is restored.
+        var document = new RichEditDocument();
+        InsertText(document, 0, "H");
+        InsertText(document, 1, "i");
+        document.Selection.SetRange(0, 2);
+
+        document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+        AssertBoldRuns(document, (0, 2));
+        Assert.That(document.CanUndo(), Is.True);
+
+        document.Undo();
+
+        AssertText(document, "Hi");
+        AssertBoldRuns(document); // no bold runs left
+        Assert.That(document.Selection.StartPosition, Is.EqualTo(0));
+        Assert.That(document.Selection.EndPosition, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void RedoBoldToggle_ReappliesRunsAndSelection()
+    {
+        var document = CreateDocument("Hi");
+        document.Selection.SetRange(0, 2);
+        document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+
+        document.Undo();
+        Assert.That(document.CanRedo(), Is.True);
+
+        document.Redo();
+
+        AssertText(document, "Hi");
+        AssertBoldRuns(document, (0, 2));
+        Assert.That(document.Selection.StartPosition, Is.EqualTo(0));
+        Assert.That(document.Selection.EndPosition, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void UndoInsert_RestoresPriorSelection()
+    {
+        // Selection bounds must travel with the snapshot, not be clamped to current state.
+        var document = CreateDocument("ab");
+        document.Selection.SetRange(2, 2);
+        InsertText(document, 2, "c");
+        document.Selection.SetRange(0, 3);
+
+        document.Undo();
+
+        AssertText(document, "ab");
+        Assert.That(document.Selection.StartPosition, Is.EqualTo(2));
+        Assert.That(document.Selection.EndPosition, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void RedoBoldToggle_AfterUndo_RestoresBoldAndSelection()
+    {
+        // Workflow: type "Hi", select "Hi", Ctrl+B, Ctrl+Z, Ctrl+Y.
+        var document = new RichEditDocument();
+        InsertText(document, 0, "H");
+        InsertText(document, 1, "i");
+        document.Selection.SetRange(0, 2);
+        document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+
+        document.Undo();
+        Assert.That(document.CanRedo(), Is.True);
+
+        document.Redo();
+
+        AssertText(document, "Hi");
+        AssertBoldRuns(document, (0, 2));
+        Assert.That(document.Selection.StartPosition, Is.EqualTo(0));
+        Assert.That(document.Selection.EndPosition, Is.EqualTo(2));
+        Assert.That(document.CanRedo(), Is.False);
+    }
+
+    [Test]
+    public void RedoTyping_RestoresInsertedTextAndCaret()
+    {
+        var document = CreateDocument("ab");
+        document.Selection.SetRange(2, 2);
+        InsertText(document, 2, "c");
+
+        document.Undo();
+        AssertText(document, "ab");
+
+        document.Redo();
+        AssertText(document, "abc");
+        Assert.That(document.Selection.StartPosition, Is.EqualTo(2));
+        Assert.That(document.Selection.EndPosition, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void RedoMultipleSteps_ReplaysInOriginalOrder()
+    {
+        var document = new RichEditDocument();
+        InsertText(document, 0, "H");
+        InsertText(document, 1, "i");
+        document.Selection.SetRange(0, 2);
+        document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+
+        document.Undo(); // undo bold
+        document.Undo(); // undo "i"
+        AssertText(document, "H");
+        AssertBoldRuns(document);
+
+        document.Redo(); // redo "i"
+        AssertText(document, "Hi");
+        AssertBoldRuns(document);
+
+        document.Redo(); // redo bold
+        AssertText(document, "Hi");
+        AssertBoldRuns(document, (0, 2));
+        Assert.That(document.Selection.StartPosition, Is.EqualTo(0));
+        Assert.That(document.Selection.EndPosition, Is.EqualTo(2));
+        Assert.That(document.CanRedo(), Is.False);
+    }
+
+    [Test]
+    public void RedoDelete_ReappliesDeletion()
+    {
+        var document = CreateDocument("abcdef");
+        document.GetRange(2, 5).CharacterFormat.Bold = FormatEffect.On;
+        DeleteRange(document, 0, 3);
+
+        document.Undo();
+        AssertText(document, "abcdef");
+        AssertBoldRuns(document, (2, 5));
+
+        document.Redo();
+        AssertText(document, "def");
+        AssertBoldRuns(document, (0, 2));
+    }
+
+    [Test]
+    public void RetroApplyScope_ColorsJustTypedCharacterFromCollapsedCaret()
+    {
+        // WinUI parity: while the host is dispatching TextChanged after an
+        // insertion, setting a delta format on the collapsed caret retro-colors
+        // the just-typed text (so "type H -> set green" yields a green H).
+        var document = CreateDocument(string.Empty);
+        var green = global::Windows.UI.Color.FromArgb(255, 0, 128, 0);
+
+        InsertText(document, 0, "H");
+        document.Selection.SetRange(1, 1);
+
+        var scope = (System.IDisposable)typeof(RichEditDocument)
+            .GetMethod("EnterRetroApplyScope", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(document, null)!;
+        try
+        {
+            document.Selection.CharacterFormat.ForegroundColor = green;
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+
+        var runs = document.GetCharacterFormatRuns();
+        Assert.That(runs, Has.Count.EqualTo(1));
+        Assert.That(runs[0].Format.ForegroundColor, Is.EqualTo(green));
+        Assert.That((runs[0].Start, runs[0].End), Is.EqualTo((0, 1)));
+    }
+
+    [Test]
+    public void RetroApply_OutsideScope_LeavesJustTypedTextUntouched()
+    {
+        // Without the retro-apply scope (i.e. programmatic edits), setting a
+        // format on the collapsed caret must only affect future input. This
+        // guards the bold/italic typing test below from regressing.
+        var document = CreateDocument(string.Empty);
+        var green = global::Windows.UI.Color.FromArgb(255, 0, 128, 0);
+
+        InsertText(document, 0, "H");
+        document.Selection.SetRange(1, 1);
+        document.Selection.CharacterFormat.ForegroundColor = green;
+
+        var runs = document.GetCharacterFormatRuns();
+        Assert.That(runs.Any(r => r.Start == 0 && r.End == 1 && r.Format.ForegroundColor == green), Is.False,
+            "programmatic format set must not retro-color the prior insert");
+    }
+
+    [Test]
+    public void BoldToggle_PreservesExistingForegroundColor()
+    {
+        // Repro: type green "Hi", select it, Ctrl+B. Bold must not wipe the
+        // foreground color of the existing runs.
+        var document = CreateDocument("Hi");
+        var green = global::Windows.UI.Color.FromArgb(255, 0, 128, 0);
+        document.GetRange(0, 2).CharacterFormat.ForegroundColor = green;
+
+        document.Selection.SetRange(0, 2);
+        document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+
+        var runs = document.GetCharacterFormatRuns();
+        Assert.That(runs, Has.Count.EqualTo(1));
+        Assert.That(runs[0].Format.Bold, Is.EqualTo(FormatEffect.On));
+        Assert.That(runs[0].Format.ForegroundColor, Is.EqualTo(green));
+    }
+
+    [Test]
+    public void UndoBoldToggle_RestoresGreenNonBoldText()
+    {
+        // Full workflow: green "Hi", select, Ctrl+B, Ctrl+Z. Must end on
+        // green non-bold "Hi" with selection (0..2) restored.
+        var document = CreateDocument("Hi");
+        var green = global::Windows.UI.Color.FromArgb(255, 0, 128, 0);
+        document.GetRange(0, 2).CharacterFormat.ForegroundColor = green;
+
+        document.Selection.SetRange(0, 2);
+        document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+
+        document.Undo();
+
+        AssertText(document, "Hi");
+        var runs = document.GetCharacterFormatRuns();
+        Assert.That(runs, Has.Count.EqualTo(1));
+        Assert.That(runs[0].Format.Bold, Is.Not.EqualTo(FormatEffect.On));
+        Assert.That(runs[0].Format.ForegroundColor, Is.EqualTo(green));
+        Assert.That(document.Selection.StartPosition, Is.EqualTo(0));
+        Assert.That(document.Selection.EndPosition, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void BoldToggle_OverMixedRuns_PreservesPerRunFormatting()
+    {
+        // Selection spans an uncolored "H" and a green "i". Bolding the
+        // selection must preserve both per-run formatting attributes.
+        var document = CreateDocument("Hi");
+        var green = global::Windows.UI.Color.FromArgb(255, 0, 128, 0);
+        document.GetRange(1, 2).CharacterFormat.ForegroundColor = green;
+
+        document.Selection.SetRange(0, 2);
+        document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+
+        var runs = document.GetCharacterFormatRuns().OrderBy(r => r.Start).ToList();
+        Assert.That(runs.All(r => r.Format.Bold == FormatEffect.On), Is.True,
+            "every run in the bolded range should be bold");
+        var greenRun = runs.FirstOrDefault(r => r.Start == 1 && r.End == 2);
+        Assert.That(greenRun, Is.Not.Null);
+        Assert.That(greenRun!.Format.ForegroundColor, Is.EqualTo(green));
+    }
+
+    [Test]
+    public void BoldToggle_IsIndependentUndoEntryFromTyping()
+    {
+        // The bug: ApplyCharacterFormat did not record an undo entry, so Ctrl+Z
+        // would pop the previous typing entry instead.
+        var document = new RichEditDocument();
+        InsertText(document, 0, "H");
+        InsertText(document, 1, "i");
+        document.Selection.SetRange(0, 2);
+        document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+
+        document.Undo(); // undoes the bold only
+
+        AssertText(document, "Hi");
+        AssertBoldRuns(document);
+        Assert.That(document.CanUndo(), Is.True, "typing entries must still be on the undo stack");
+    }
+
+    [Test]
     public void CaretInputFormat_PrefersCaretOverDefault()
     {
         var document = CreateDocument(string.Empty);

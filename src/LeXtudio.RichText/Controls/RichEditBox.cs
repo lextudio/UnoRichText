@@ -207,6 +207,7 @@ public partial class RichEditBox : ContentControl
         _editorHost.TextChanged += OnEditorHostTextChanged;
         _editorHost.SelectionChanged += OnEditorHostSelectionChanged;
         _editorHost.FormattingAcceleratorRequested += OnEditorHostFormattingAcceleratorRequested;
+        _editorHost.EditingCommandRequested += OnEditorHostEditingCommandRequested;
 
         // Document → editor (when consumer calls Document.SetText programmatically)
         Document.TextChanged += OnDocumentTextChanged;
@@ -279,6 +280,24 @@ public partial class RichEditBox : ContentControl
         LogDiagnostic($"FormattingAccelerator handled={e.Handled} selection={Document.Selection.StartPosition}..{Document.Selection.EndPosition} format={DescribeSelectionFormat()} runs={DescribeRuns()}");
     }
 
+    private void OnEditorHostEditingCommandRequested(object? sender, TextEditingCommandRequestedEventArgs e)
+    {
+        LogDiagnostic($"EditingCommand requested={e.Command} canUndo={Document.CanUndo()} canRedo={Document.CanRedo()} text={DescribeText(_editorHost.Text)} runs={DescribeRuns()}");
+        switch (e.Command)
+        {
+            case TextEditingCommand.Undo when Document.CanUndo():
+                Document.Undo();
+                e.Handled = true;
+                break;
+            case TextEditingCommand.Redo when Document.CanRedo():
+                Document.Redo();
+                e.Handled = true;
+                break;
+        }
+
+        LogDiagnostic($"EditingCommand handled={e.Handled} runs={DescribeRuns()}");
+    }
+
     public void ToggleSelectionUnderline()
     {
         var format = Document.Selection.CharacterFormat;
@@ -296,14 +315,37 @@ public partial class RichEditBox : ContentControl
         {
             Document.GetText(Microsoft.UI.Text.TextGetOptions.None, out var s);
             if (_editorHost.Text != s) _editorHost.Text = s ?? string.Empty;
+            var textLength = _editorHost.Text?.Length ?? 0;
+            var selectionStart = Math.Clamp(Document.Selection.StartPosition, 0, textLength);
+            var selectionLength = Math.Clamp(Document.Selection.EndPosition - Document.Selection.StartPosition, 0, textLength - selectionStart);
+            _editorHost.Select(selectionStart, selectionLength);
             RefreshRichRenderOverlay();
         }
         finally { _syncingFromDocument = false; }
+
+        // Surface document-driven state changes (e.g. undo/redo, programmatic
+        // edits) so external listeners — toolbars, snapshots — can refresh.
+        RaiseTextChanged(new RoutedEventArgs());
     }
 
     private void OnDocumentFormattingChanged(object? sender, System.EventArgs e)
     {
         LogDiagnostic($"DocumentFormattingChanged runs={DescribeRuns()}");
+        if (!_syncingFromDocument)
+        {
+            _syncingFromDocument = true;
+            try
+            {
+                var textLength = _editorHost.Text?.Length ?? 0;
+                var selectionStart = Math.Clamp(Document.Selection.StartPosition, 0, textLength);
+                var selectionLength = Math.Clamp(Document.Selection.EndPosition - Document.Selection.StartPosition, 0, textLength - selectionStart);
+                if (_editorHost.SelectionStart != selectionStart || _editorHost.SelectionLength != selectionLength)
+                {
+                    _editorHost.Select(selectionStart, selectionLength);
+                }
+            }
+            finally { _syncingFromDocument = false; }
+        }
         RefreshRichRenderOverlay();
     }
 
@@ -356,7 +398,12 @@ public partial class RichEditBox : ContentControl
                 Document.Selection.SetRange(_editorHost.SelectionStart, _editorHost.SelectionStart + _editorHost.SelectionLength);
             RefreshRichRenderOverlay();
             LogDiagnostic($"EditorHostTextChanged after SetText runsAfter={DescribeRuns()} overlay={_renderOverlay.Visibility} opacity={_editorHost.Opacity}");
-            RaiseTextChanged(new RoutedEventArgs());
+            // Arm retro-apply only for the duration of TextChanged dispatch so
+            // a handler that runs `Selection.CharacterFormat.X = ...` colors the
+            // just-typed characters (WinUI parity). Programmatic format edits
+            // outside this window keep their normal "future input only" effect.
+            using (Document.EnterRetroApplyScope())
+                RaiseTextChanged(new RoutedEventArgs());
         }
         finally { _syncingFromDocument = false; }
     }

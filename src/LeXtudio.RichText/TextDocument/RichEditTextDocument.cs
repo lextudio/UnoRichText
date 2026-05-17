@@ -54,6 +54,18 @@ public sealed class RichEditTextDocument
     private bool _isReplayingHistory;
     private int _preserveCaretInputFormatDepth;
 
+    // Tracks the range of the most recent text insertion. While the selection
+    // is still collapsed at the trailing end of this range (i.e. the user just
+    // finished typing and hasn't moved the caret) AND the host is dispatching
+    // its TextChanged notification, a delta format applied to the caret
+    // retro-applies to the inserted span. This mirrors WinUI's RichEditBox
+    // behavior where TextChanged-time format assignments color the just-typed
+    // characters.
+    private (int Start, int End)? _pendingInsertRange;
+    private int _retroApplyDepth;
+
+    internal IDisposable EnterRetroApplyScope() => new RetroApplyScope(this);
+
     public RichEditTextDocument()
     {
         _selection = new RichEditTextSelection(this);
@@ -234,6 +246,15 @@ public sealed class RichEditTextDocument
             before,
             CaptureSnapshot()));
 
+        // Extend the pending input range if this insertion is contiguous with
+        // the previous one (caret was at its trailing edge); otherwise start a
+        // fresh range. Both cases let a follow-up TextChanged-time format set
+        // through the selection retro-apply to all of the just-typed text.
+        if (_pendingInsertRange is { } prev && prev.End == offset)
+            _pendingInsertRange = (prev.Start, offset + delta);
+        else
+            _pendingInsertRange = (offset, offset + delta);
+
         TextChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -334,10 +355,12 @@ public sealed class RichEditTextDocument
         return GetCharacterFormatIgnoringCaretInput(start);
     }
 
-    internal void ApplyCharacterFormat(int start, int end, TextCharacterFormat format)
+    internal void ApplyCharacterFormat(int start, int end, TextCharacterFormat format, TextCharacterFormat? baseline = null)
     {
         start = Math.Clamp(start, 0, _buffer.Length);
         end = Math.Clamp(end, start, _buffer.Length);
+
+        var before = CaptureSnapshot();
 
         if (start == end)
         {
@@ -347,39 +370,104 @@ public sealed class RichEditTextDocument
                 current = (TextCharacterFormat)_caretInputFormat.GetClone();
             }
 
-            _caretInputFormat = ResolveToggleValues(current, format);
+            var newCaretFormat = baseline is null
+                ? ResolveToggleValues(current, format)
+                : ApplyFormatDelta(current, format, baseline);
+
+            // WinUI parity: when the caret sits at the trailing edge of the
+            // most recent insertion, a delta format applied via the selection
+            // also colors the just-typed text. Without this, an external
+            // TextChanged handler that runs after each keystroke only affects
+            // future input and the leading characters stay uncolored.
+            bool retroApply = baseline is not null
+                && _retroApplyDepth > 0
+                && _pendingInsertRange is { } pendingProbe
+                && start == pendingProbe.End
+                && pendingProbe.End > pendingProbe.Start;
+
+            if (retroApply)
+            {
+                var pending = _pendingInsertRange!.Value;
+                ApplyDeltaToRunsInRange(pending.Start, pending.End, format, baseline!);
+                // Restore caret state after the range mutation so future input
+                // continues to pick up the delta-merged format.
+                _caretInputFormat = newCaretFormat;
+                // Keep the pending range so subsequent typing stays attached.
+                _pendingInsertRange = pending;
+
+                RecordEditOperation(new EditOperation(
+                    start,
+                    string.Empty,
+                    string.Empty,
+                    new List<RichEditCharacterFormatRun>(),
+                    before,
+                    CaptureSnapshot()));
+            }
+            else
+            {
+                _caretInputFormat = newCaretFormat;
+            }
+
             FormattingChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
 
         _caretInputFormat = null;
 
-        var nextFormat = ResolveToggleValues(GetCharacterFormat(start, end), format);
         var nextRuns = new List<CharacterFormatRun>();
 
-        foreach (var run in _characterFormatRuns)
+        if (baseline is null)
         {
-            if (run.End <= start || run.Start >= end)
+            // No baseline: caller is asserting the full format. Preserve existing
+            // behavior of replacing the range with a single resolved run.
+            var nextFormat = ResolveToggleValues(GetCharacterFormat(start, end), format);
+
+            foreach (var run in _characterFormatRuns)
             {
-                nextRuns.Add(run);
-                continue;
+                if (run.End <= start || run.Start >= end)
+                {
+                    nextRuns.Add(run);
+                    continue;
+                }
+
+                if (run.Start < start)
+                {
+                    nextRuns.Add(new CharacterFormatRun(run.Start, start, (TextCharacterFormat)run.Format.GetClone()));
+                }
+
+                if (run.End > end)
+                {
+                    nextRuns.Add(new CharacterFormatRun(end, run.End, (TextCharacterFormat)run.Format.GetClone()));
+                }
             }
 
-            if (run.Start < start)
-            {
-                nextRuns.Add(new CharacterFormatRun(run.Start, start, (TextCharacterFormat)run.Format.GetClone()));
-            }
-
-            if (run.End > end)
-            {
-                nextRuns.Add(new CharacterFormatRun(end, run.End, (TextCharacterFormat)run.Format.GetClone()));
-            }
+            nextRuns.Add(new CharacterFormatRun(start, end, nextFormat));
         }
-
-        nextRuns.Add(new CharacterFormatRun(start, end, nextFormat));
+        else
+        {
+            ApplyDeltaToRunsInRange(start, end, format, baseline);
+            RecordEditOperation(new EditOperation(
+                start,
+                string.Empty,
+                string.Empty,
+                new List<RichEditCharacterFormatRun>(),
+                before,
+                CaptureSnapshot()));
+            FormattingChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
 
         _characterFormatRuns.Clear();
         _characterFormatRuns.AddRange(NormalizeRunsToParagraphBoundaries(nextRuns));
+
+        RecordEditOperation(new EditOperation(
+            start,
+            string.Empty,
+            string.Empty,
+            new List<RichEditCharacterFormatRun>(),
+            before,
+            CaptureSnapshot()));
+
         FormattingChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -394,6 +482,15 @@ public sealed class RichEditTextDocument
         {
             _caretInputFormat = null;
         }
+
+        // Once the caret leaves the trailing edge of the most recent insertion,
+        // retro-application is no longer applicable: a later format set on the
+        // selection should not reach back to that older typing run.
+        if (_pendingInsertRange is { } pending
+            && (newStart != newEnd || newStart != pending.End))
+        {
+            _pendingInsertRange = null;
+        }
     }
 
     private static TextCharacterFormat ResolveToggleValues(TextCharacterFormat current, TextCharacterFormat requested)
@@ -402,6 +499,118 @@ public sealed class RichEditTextDocument
         resolved.Bold = ResolveToggle(current.Bold, requested.Bold);
         resolved.Italic = ResolveToggle(current.Italic, requested.Italic);
         return resolved;
+    }
+
+    // Applies the (requested - baseline) field delta to every run intersecting
+    // [start, end], splitting and synthesizing runs as needed. Caller is
+    // responsible for snapshot/record/event bookkeeping.
+    private void ApplyDeltaToRunsInRange(int start, int end, TextCharacterFormat requested, TextCharacterFormat baseline)
+    {
+        if (end <= start)
+            return;
+
+        var nextRuns = new List<CharacterFormatRun>();
+        int cursor = start;
+
+        foreach (var run in _characterFormatRuns.OrderBy(r => r.Start))
+        {
+            if (run.End <= start || run.Start >= end)
+            {
+                nextRuns.Add(run);
+                continue;
+            }
+
+            if (run.Start < start)
+                nextRuns.Add(new CharacterFormatRun(run.Start, start, (TextCharacterFormat)run.Format.GetClone()));
+
+            int segStart = Math.Max(run.Start, start);
+            int segEnd = Math.Min(run.End, end);
+
+            if (segStart > cursor)
+            {
+                var gapFormat = ApplyFormatDelta(
+                    (TextCharacterFormat)_defaultCharacterFormat.GetClone(),
+                    requested,
+                    baseline);
+                nextRuns.Add(new CharacterFormatRun(cursor, segStart, gapFormat));
+            }
+
+            var mergedFormat = ApplyFormatDelta(
+                (TextCharacterFormat)run.Format.GetClone(),
+                requested,
+                baseline);
+            nextRuns.Add(new CharacterFormatRun(segStart, segEnd, mergedFormat));
+            cursor = segEnd;
+
+            if (run.End > end)
+                nextRuns.Add(new CharacterFormatRun(end, run.End, (TextCharacterFormat)run.Format.GetClone()));
+        }
+
+        if (cursor < end)
+        {
+            var gapFormat = ApplyFormatDelta(
+                (TextCharacterFormat)_defaultCharacterFormat.GetClone(),
+                requested,
+                baseline);
+            nextRuns.Add(new CharacterFormatRun(cursor, end, gapFormat));
+        }
+
+        _characterFormatRuns.Clear();
+        _characterFormatRuns.AddRange(NormalizeRunsToParagraphBoundaries(nextRuns));
+    }
+
+    // Returns a new format = target with only the fields where requested differs
+    // from baseline overlaid. Bold/Italic toggles resolve against target's
+    // current value so toggling against a per-run state flips that run.
+    private static TextCharacterFormat ApplyFormatDelta(TextCharacterFormat target, TextCharacterFormat requested, TextCharacterFormat baseline)
+    {
+        if (requested.Bold != baseline.Bold)
+            target.Bold = requested.Bold == FormatEffect.Toggle ? ResolveToggle(target.Bold, FormatEffect.Toggle) : requested.Bold;
+        if (requested.Italic != baseline.Italic)
+            target.Italic = requested.Italic == FormatEffect.Toggle ? ResolveToggle(target.Italic, FormatEffect.Toggle) : requested.Italic;
+        if (requested.Underline != baseline.Underline)
+            target.Underline = requested.Underline;
+        if (requested.Strikethrough != baseline.Strikethrough)
+            target.Strikethrough = requested.Strikethrough;
+        if (!requested.ForegroundColor.Equals(baseline.ForegroundColor))
+            target.ForegroundColor = requested.ForegroundColor;
+        if (!requested.BackgroundColor.Equals(baseline.BackgroundColor))
+            target.BackgroundColor = requested.BackgroundColor;
+        if (requested.Size != baseline.Size)
+            target.Size = requested.Size;
+        if (requested.Weight != baseline.Weight)
+            target.Weight = requested.Weight;
+        if (requested.Name != baseline.Name)
+            target.Name = requested.Name;
+        if (requested.FontStyle != baseline.FontStyle)
+            target.FontStyle = requested.FontStyle;
+        if (requested.FontStretch != baseline.FontStretch)
+            target.FontStretch = requested.FontStretch;
+        if (requested.AllCaps != baseline.AllCaps)
+            target.AllCaps = requested.AllCaps;
+        if (requested.SmallCaps != baseline.SmallCaps)
+            target.SmallCaps = requested.SmallCaps;
+        if (requested.Hidden != baseline.Hidden)
+            target.Hidden = requested.Hidden;
+        if (requested.Outline != baseline.Outline)
+            target.Outline = requested.Outline;
+        if (requested.ProtectedText != baseline.ProtectedText)
+            target.ProtectedText = requested.ProtectedText;
+        if (requested.Subscript != baseline.Subscript)
+            target.Subscript = requested.Subscript;
+        if (requested.Superscript != baseline.Superscript)
+            target.Superscript = requested.Superscript;
+        if (requested.Kerning != baseline.Kerning)
+            target.Kerning = requested.Kerning;
+        if (requested.Position != baseline.Position)
+            target.Position = requested.Position;
+        if (requested.Spacing != baseline.Spacing)
+            target.Spacing = requested.Spacing;
+        if (requested.LanguageTag != baseline.LanguageTag)
+            target.LanguageTag = requested.LanguageTag;
+        if (requested.TextScript != baseline.TextScript)
+            target.TextScript = requested.TextScript;
+        return target;
     }
 
     private static FormatEffect ResolveToggle(FormatEffect current, FormatEffect requested)
@@ -511,7 +720,9 @@ public sealed class RichEditTextDocument
             _buffer.ToString(),
             CloneRuns(_characterFormatRuns),
             (TextCharacterFormat)_defaultCharacterFormat.GetClone(),
-            _caretInputFormat is null ? null : (TextCharacterFormat)_caretInputFormat.GetClone());
+            _caretInputFormat is null ? null : (TextCharacterFormat)_caretInputFormat.GetClone(),
+            _selection.StartPosition,
+            _selection.EndPosition);
 
     private List<RichEditCharacterFormatRun> CaptureRunsInRange(int start, int end)
     {
@@ -553,7 +764,9 @@ public sealed class RichEditTextDocument
 
             _defaultCharacterFormat = (TextCharacterFormat)snapshot.DefaultCharacterFormat.GetClone();
             _caretInputFormat = snapshot.CaretInputFormat is null ? null : (TextCharacterFormat)snapshot.CaretInputFormat.GetClone();
-            _selection.SetRange(Math.Min(_selection.StartPosition, _buffer.Length), Math.Min(_selection.EndPosition, _buffer.Length));
+            var restoredStart = Math.Clamp(snapshot.SelectionStart, 0, _buffer.Length);
+            var restoredEnd = Math.Clamp(snapshot.SelectionEnd, restoredStart, _buffer.Length);
+            _selection.SetRange(restoredStart, restoredEnd);
         }
         finally
         {
@@ -577,6 +790,25 @@ public sealed class RichEditTextDocument
         }
 
         return format;
+    }
+
+    private sealed class RetroApplyScope : IDisposable
+    {
+        private readonly RichEditTextDocument _owner;
+        private bool _disposed;
+
+        public RetroApplyScope(RichEditTextDocument owner)
+        {
+            _owner = owner;
+            _owner._retroApplyDepth++;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _owner._retroApplyDepth = Math.Max(0, _owner._retroApplyDepth - 1);
+        }
     }
 
     private sealed class CaretInputFormatScope : IDisposable
@@ -607,7 +839,9 @@ public sealed class RichEditTextDocument
         string Text,
         List<CharacterFormatRun> Runs,
         TextCharacterFormat DefaultCharacterFormat,
-        TextCharacterFormat? CaretInputFormat);
+        TextCharacterFormat? CaretInputFormat,
+        int SelectionStart,
+        int SelectionEnd);
 
     private sealed record EditOperation(
         int Start,

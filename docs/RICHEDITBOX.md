@@ -72,7 +72,7 @@ Those tests cover the document-layer typing-format behavior for collapsed select
 Latest local checkout attempt:
 
 - command: `dotnet test UnoRichText/src/LeXtudio.RichText.Tests/LeXtudio.RichText.Tests.csproj`
-- result: passed, 35 tests
+- result: passed, 36 tests
 - unrelated warning: `Tmds.DBus.Protocol` 0.21.2 has a known high severity advisory
 
 ### Phase 1: Make the document authoritative
@@ -182,6 +182,8 @@ Current checkout:
 
 ### Phase 5: Clipboard and common editing commands
 
+Status: started. `Ctrl+Z` and `Ctrl+Y` now flow through the `TextBox` host as document-owner editing commands, and `RichEditBox` handles them with `Document.Undo()` / `Document.Redo()` so text and formatting runs replay together.
+
 The public WinUI control will feel incomplete until normal editor actions behave well.
 
 Needed work:
@@ -190,13 +192,18 @@ Needed work:
 - delete/backspace behavior against selections and collapsed carets
 - enter/new paragraph behavior
 - select all
-- undo/redo transaction boundaries
+- undo/redo transaction boundaries: started for keyboard command routing
 
 Exit criteria:
 
 - basic editing behaves like a normal editor
 - clipboard round-trips plain text reliably
 - rich clipboard can be deferred if needed, but plain text must be solid
+
+Current checkout:
+
+- unit: `dotnet test UnoRichText/src/LeXtudio.RichText.Tests/LeXtudio.RichText.Tests.csproj` passes with 36 tests
+- visual: type formatted text in the RichEditBox Gallery editor, then verify `Ctrl+Z` and `Ctrl+Y` undo/redo both text and visible formatting
 
 ### Phase 6: WinUI API parity polish
 

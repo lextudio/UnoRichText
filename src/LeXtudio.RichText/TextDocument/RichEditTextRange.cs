@@ -29,6 +29,7 @@ internal class RichEditTextRange : ITextRange
     private int _start;
     private int _end;
     private TextCharacterFormat _characterFormat = new();
+    private TextCharacterFormat _characterFormatBaseline = new();
     private TextParagraphFormat _paragraphFormat = new();
 
     public RichEditTextRange(RichEditTextDocument document, int start, int end)
@@ -224,11 +225,13 @@ internal class RichEditTextRange : ITextRange
             _characterFormat.Changed -= OnCharacterFormatChanged;
 
         _characterFormat = format;
+        _characterFormatBaseline = (TextCharacterFormat)format.GetClone();
         _characterFormat.Changed += OnCharacterFormatChanged;
     }
 
     private void OnCharacterFormatChanged(object? sender, EventArgs e)
     {
-        _document.ApplyCharacterFormat(_start, _end, _characterFormat);
+        _document.ApplyCharacterFormat(_start, _end, _characterFormat, _characterFormatBaseline);
+        _characterFormatBaseline = (TextCharacterFormat)_characterFormat.GetClone();
     }
 }

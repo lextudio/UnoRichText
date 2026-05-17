@@ -28,7 +28,6 @@ public sealed partial class MainPage : Page
     {
         InitializeComponent();
 
-        LeXtudio.UI.Xaml.Controls.RichEditBox.DiagnosticsEnabled = true;
         LiveRichEditBox.Document.SetText(TextSetOptions.None, "Replace me here");
         MathEditor.Document.SetMathMode(RichEditMathMode.MathOnly);
         mathEditor2.Document.SetMathMode(RichEditMathMode.MathOnly);
