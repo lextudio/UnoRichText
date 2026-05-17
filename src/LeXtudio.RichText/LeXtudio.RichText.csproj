@@ -24,7 +24,7 @@
     <IsPackable>true</IsPackable>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <UseNuGetPackage>false</UseNuGetPackage>
+    <UseNuGetPackage>true</UseNuGetPackage>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(UseNuGetPackage)' == 'true'">
