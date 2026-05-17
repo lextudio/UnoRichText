@@ -182,7 +182,7 @@ Current checkout:
 
 ### Phase 5: Clipboard and common editing commands
 
-Status: started. `Ctrl+Z` and `Ctrl+Y` now flow through the `TextBox` host as document-owner editing commands, and `RichEditBox` handles them with `Document.Undo()` / `Document.Redo()` so text and formatting runs replay together.
+Status: undo/redo are landed and stable. `Ctrl+Z` / `Ctrl+Y` flow through the `TextBox` host as document-owner editing commands; `Document.Undo()` / `Document.Redo()` replay text, formatting runs, and selection together. Formatting toggles record their own undo entries, snapshots carry selection bounds, and a delta-merge formatting path preserves per-run attributes (color, font, etc.) when toggling bold/italic over a selection. A scoped retro-apply window lets a host-driven `TextChanged` handler color the just-typed characters (WinUI parity). `RichEditBox.TextChanged` now also surfaces document-driven updates so external toolbars refresh after undo/redo.
 
 The public WinUI control will feel incomplete until normal editor actions behave well.
 
@@ -207,16 +207,19 @@ Current checkout:
 
 ### Phase 6: WinUI API parity polish
 
-After the editing model is stable, finish the surface details:
+Status: started. Read-only behavior is wired: `IsReadOnly` now propagates to the editor host (gating typing, paste, delete), and the formatting accelerator and editing-command handlers swallow `Ctrl+B/I/U`, `Ctrl+Z`, `Ctrl+Y` when the control is read-only — matching how WinUI's `RichEditBox` ignores those gestures on a non-editable surface.
+
+Remaining work in this phase:
 
 - `ITextDocument` / `ITextRange` behavior gaps
 - proofing-related events and flyouts
 - candidate window events
 - placeholder/header/description polish
-- disabled formatting accelerator behavior
-- read-only behavior consistency
 
-This phase should come last. It is much easier once the editor core is real.
+Current checkout:
+
+- unit: `dotnet test UnoRichText/src/LeXtudio.RichText.Tests/LeXtudio.RichText.Tests.csproj` passes with 49 tests
+- visual: toggle `IsReadOnly` in the sample and verify that typing, paste, `Ctrl+B`, `Ctrl+Z` are all suppressed while selection/caret remain usable.
 
 ## Debugging notes
 

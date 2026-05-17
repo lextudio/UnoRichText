@@ -191,6 +191,7 @@ public partial class RichEditBox : ContentControl
             TextWrapping = TextWrapping.Wrap,
             VerticalAlignment = VerticalAlignment.Stretch,
             HorizontalAlignment = HorizontalAlignment.Stretch,
+            IsReadOnly = IsReadOnly,
         };
 
         _renderOverlay = new RichTextBlock
@@ -258,7 +259,15 @@ public partial class RichEditBox : ContentControl
 
     private void OnEditorHostFormattingAcceleratorRequested(object? sender, TextFormattingAcceleratorRequestedEventArgs e)
     {
-        LogDiagnostic($"FormattingAccelerator requested={e.Accelerator} selection={e.SelectionStart}+{e.SelectionLength} text={DescribeText(_editorHost.Text)}");
+        LogDiagnostic($"FormattingAccelerator requested={e.Accelerator} selection={e.SelectionStart}+{e.SelectionLength} text={DescribeText(_editorHost.Text)} readOnly={IsReadOnly}");
+        if (IsReadOnly)
+        {
+            // Read-only: swallow the accelerator so the host does not flip
+            // formatting state on a non-editable surface. Stay consistent with
+            // WinUI which simply ignores Ctrl+B/I/U on a read-only RichEditBox.
+            e.Handled = true;
+            return;
+        }
         Document.Selection.SetRange(e.SelectionStart, e.SelectionStart + e.SelectionLength);
         LogDiagnostic($"FormattingAccelerator before selection={Document.Selection.StartPosition}..{Document.Selection.EndPosition} format={DescribeSelectionFormat()} runs={DescribeRuns()}");
 
@@ -282,7 +291,12 @@ public partial class RichEditBox : ContentControl
 
     private void OnEditorHostEditingCommandRequested(object? sender, TextEditingCommandRequestedEventArgs e)
     {
-        LogDiagnostic($"EditingCommand requested={e.Command} canUndo={Document.CanUndo()} canRedo={Document.CanRedo()} text={DescribeText(_editorHost.Text)} runs={DescribeRuns()}");
+        LogDiagnostic($"EditingCommand requested={e.Command} canUndo={Document.CanUndo()} canRedo={Document.CanRedo()} text={DescribeText(_editorHost.Text)} runs={DescribeRuns()} readOnly={IsReadOnly}");
+        if (IsReadOnly)
+        {
+            e.Handled = true;
+            return;
+        }
         switch (e.Command)
         {
             case TextEditingCommand.Undo when Document.CanUndo():
@@ -431,7 +445,10 @@ public partial class RichEditBox : ContentControl
 
     private static void OnIsReadOnlyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        // TODO: update visual state, gate input.
+        if (d is RichEditBox box && box._editorHost is not null)
+        {
+            box._editorHost.IsReadOnly = (bool)e.NewValue;
+        }
     }
 
     internal void RaiseSelectionChanged(RoutedEventArgs e) => SelectionChanged?.Invoke(this, e);
