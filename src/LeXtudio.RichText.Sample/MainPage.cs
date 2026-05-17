@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Xml.Linq;
 using LeXtudio.UI.Xaml.Controls;
 using Microsoft.UI;
@@ -34,6 +35,7 @@ public sealed partial class MainPage : Page
         InitializeWpfRichTextBoxSample();
         EnsureGalleryRichTextBlocks();
         UpdateEditorToolbarState();
+        UpdateLiveRichEditBoxSnapshot();
     }
 
     private void InitializeWpfRichTextBoxSample()
@@ -411,20 +413,58 @@ public sealed partial class MainPage : Page
     private void LiveBoldButton_Click(object sender, RoutedEventArgs e)
     {
         LiveRichEditBox.Document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+        UpdateLiveRichEditBoxSnapshot();
         LiveRichEditBox.Focus(FocusState.Keyboard);
     }
 
     private void LiveItalicButton_Click(object sender, RoutedEventArgs e)
     {
         LiveRichEditBox.Document.Selection.CharacterFormat.Italic = FormatEffect.Toggle;
+        UpdateLiveRichEditBoxSnapshot();
         LiveRichEditBox.Focus(FocusState.Keyboard);
     }
 
     private void LiveUnderlineButton_Click(object sender, RoutedEventArgs e)
     {
         LiveRichEditBox.ToggleSelectionUnderline();
+        UpdateLiveRichEditBoxSnapshot();
         LiveRichEditBox.Focus(FocusState.Keyboard);
     }
+
+    private void LiveRichEditBox_StateChanged(object sender, RoutedEventArgs e)
+    {
+        UpdateLiveRichEditBoxSnapshot();
+    }
+
+    private void UpdateLiveRichEditBoxSnapshot()
+    {
+        LiveRichEditBox.Document.GetText(TextGetOptions.None, out var text);
+        text ??= string.Empty;
+
+        var selection = LiveRichEditBox.Document.Selection;
+        var format = selection.CharacterFormat;
+        var runs = LiveRichEditBox.Document.GetCharacterFormatRuns()
+            .Select(run => $"{run.Start}..{run.End}:B={ShortFormat(run.Format.Bold)},I={ShortFormat(run.Format.Italic)},U={run.Format.Underline}")
+            .ToArray();
+
+        LiveRichEditBoxSnapshot.Text =
+            $"selection: {selection.StartPosition}..{selection.EndPosition}\n" +
+            $"format: B={ShortFormat(format.Bold)}, I={ShortFormat(format.Italic)}, U={format.Underline}\n" +
+            $"text: {EscapeSnapshotText(text)}\n" +
+            $"runs: {(runs.Length == 0 ? "(none)" : string.Join("; ", runs))}";
+    }
+
+    private static string ShortFormat(FormatEffect effect)
+        => effect switch
+        {
+            FormatEffect.On => "on",
+            FormatEffect.Off => "off",
+            FormatEffect.Toggle => "toggle",
+            _ => effect.ToString(),
+        };
+
+    private static string EscapeSnapshotText(string text)
+        => "\"" + text.Replace("\\", "\\\\").Replace("\r", "\\r").Replace("\n", "\\n").Replace("\"", "\\\"") + "\"";
 #if RICHTEXTBOX
     private void SelectAllWpfRichTextBox_Click(object sender, RoutedEventArgs e)
     {

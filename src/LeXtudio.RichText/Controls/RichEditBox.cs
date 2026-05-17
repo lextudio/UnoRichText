@@ -257,7 +257,10 @@ public partial class RichEditBox : ContentControl
 
     private void OnEditorHostFormattingAcceleratorRequested(object? sender, TextFormattingAcceleratorRequestedEventArgs e)
     {
-        LogDiagnostic($"FormattingAccelerator requested={e.Accelerator} selection={_editorHost.SelectionStart}+{_editorHost.SelectionLength} text={DescribeText(_editorHost.Text)}");
+        LogDiagnostic($"FormattingAccelerator requested={e.Accelerator} selection={e.SelectionStart}+{e.SelectionLength} text={DescribeText(_editorHost.Text)}");
+        Document.Selection.SetRange(e.SelectionStart, e.SelectionStart + e.SelectionLength);
+        LogDiagnostic($"FormattingAccelerator before selection={Document.Selection.StartPosition}..{Document.Selection.EndPosition} format={DescribeSelectionFormat()} runs={DescribeRuns()}");
+
         switch (e.Accelerator)
         {
             case TextFormattingAccelerator.Bold:
@@ -273,7 +276,7 @@ public partial class RichEditBox : ContentControl
                 e.Handled = true;
                 break;
         }
-        LogDiagnostic($"FormattingAccelerator handled={e.Handled} runs={DescribeRuns()}");
+        LogDiagnostic($"FormattingAccelerator handled={e.Handled} selection={Document.Selection.StartPosition}..{Document.Selection.EndPosition} format={DescribeSelectionFormat()} runs={DescribeRuns()}");
     }
 
     public void ToggleSelectionUnderline()
@@ -339,6 +342,8 @@ public partial class RichEditBox : ContentControl
                 LeXtudio.UI.Text.TextCharacterFormat? replacementFormat = null;
                 if (deleteEnd > deleteStart)
                     replacementFormat = Document.GetCharacterFormat(deleteStart, deleteEnd);
+
+                LogDiagnostic($"EditorHostTextChanged diff delete={deleteStart}..{deleteEnd} insert={DescribeText(insertedText)} replacementFormat={DescribeFormat(replacementFormat)} selectionBefore={Document.Selection.StartPosition}..{Document.Selection.EndPosition} selectionFormat={DescribeSelectionFormat()}");
 
                 if (deleteEnd > deleteStart)
                     Document.DeleteRange(deleteStart, deleteEnd);
@@ -488,6 +493,14 @@ public partial class RichEditBox : ContentControl
     private string DescribeRuns()
         => string.Join("; ", Document.GetCharacterFormatRuns().Select(run =>
             $"{run.Start}..{run.End} B={run.Format.Bold} I={run.Format.Italic} U={run.Format.Underline} FG={run.Format.ForegroundColor}"));
+
+    private string DescribeSelectionFormat()
+        => DescribeFormat(Document.Selection.CharacterFormat as LeXtudio.UI.Text.TextCharacterFormat);
+
+    private static string DescribeFormat(LeXtudio.UI.Text.TextCharacterFormat? format)
+        => format is null
+            ? "<null>"
+            : $"B={format.Bold} I={format.Italic} U={format.Underline} FG={format.ForegroundColor}";
 
     private static string DescribeText(string? text)
     {

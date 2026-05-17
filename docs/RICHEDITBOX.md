@@ -72,7 +72,7 @@ Those tests cover the document-layer typing-format behavior for collapsed select
 Latest local checkout attempt:
 
 - command: `dotnet test UnoRichText/src/LeXtudio.RichText.Tests/LeXtudio.RichText.Tests.csproj`
-- result: passed, 34 tests
+- result: passed, 35 tests
 - unrelated warning: `Tmds.DBus.Protocol` 0.21.2 has a known high severity advisory
 
 ### Phase 1: Make the document authoritative
@@ -145,10 +145,12 @@ Exit criteria:
 
 Current checkout:
 
-- unit: `dotnet test UnoRichText/src/LeXtudio.RichText.Tests/LeXtudio.RichText.Tests.csproj` passes with 34 tests
+- unit: `dotnet test UnoRichText/src/LeXtudio.RichText.Tests/LeXtudio.RichText.Tests.csproj` passes with 35 tests
 - visual: still needed in the sample for selected text, collapsed-selection typing, and repeated `Ctrl+B` / `Ctrl+I` / `Ctrl+U`
 
 ### Phase 4: Unify host and renderer
+
+Status: started. The live sample now includes a compact document snapshot beside the `RichEditBox`, showing selection range, active character format, plain text, and document format runs. This gives visual checkout a direct view of the document model while the overlay and host are being compared.
 
 Right now there is still a tension between the editor host and the render overlay.
 
@@ -162,7 +164,7 @@ If we continue this track, option 1 is the faster backup plan.
 Needed work:
 
 - keep caret/selection geometry from host
-- map host selection to document selection reliably
+- map host selection to document selection reliably: in progress; the sample snapshot exposes mismatches immediately
 - repaint overlay from document after every edit transaction
 - avoid flicker or temporary mismatch between overlay and host
 
@@ -171,6 +173,12 @@ Exit criteria:
 - no more "flash of bold, then plain text"
 - selection/caret remain visible and correctly positioned
 - overlay and typed content stay in sync
+
+Current checkout:
+
+- build: `dotnet build UnoRichText/src/LeXtudio.RichText.Sample/LeXtudio.RichText.Sample.csproj` passes
+- unit: `dotnet test UnoRichText/src/LeXtudio.RichText.Tests/LeXtudio.RichText.Tests.csproj` passes with 35 tests
+- visual: use the live snapshot while testing selection collapse, typing after format changes, and host/overlay repaint timing
 
 ### Phase 5: Clipboard and common editing commands
 

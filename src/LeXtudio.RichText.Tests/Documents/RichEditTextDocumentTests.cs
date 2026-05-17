@@ -150,6 +150,20 @@ public sealed class RichEditTextDocumentTests
     }
 
     [Test]
+    public void CollapsedSelectionToggleAtRunEnd_RemovesFormatFromTypedText()
+    {
+        var document = CreateDocument("Hi");
+        document.GetRange(0, 2).CharacterFormat.Bold = FormatEffect.On;
+        document.Selection.SetRange(2, 2);
+        document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+
+        document.Selection.TypeText("j");
+
+        AssertText(document, "Hij");
+        AssertBoldRuns(document, (0, 2));
+    }
+
+    [Test]
     public void CollapsedSelectionUnderline_AppliesToTypedText()
     {
         var document = CreateDocument(string.Empty);

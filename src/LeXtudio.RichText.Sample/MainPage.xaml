@@ -348,7 +348,9 @@
                                 Background="Transparent"
                                 FontSize="15"
                                 MinHeight="200"
-                                PlaceholderText="Replace me here" />
+                                PlaceholderText="Replace me here"
+                                SelectionChanged="LiveRichEditBox_StateChanged"
+                                TextChanged="LiveRichEditBox_StateChanged" />
                         </Grid>
                     </Border>
                     <TextBlock
@@ -382,14 +384,22 @@
                             FontSize="18"
                             FontWeight="SemiBold"
                             Text="RichEditBox Properties" />
-                        <grid:PropertyGridControl
+                        <StackPanel
                             Grid.Row="1"
                             Margin="0,8,0,0"
+                            Spacing="12">
+                            <TextBlock
+                                x:Name="LiveRichEditBoxSnapshot"
+                                FontFamily="Consolas"
+                                FontSize="12"
+                                TextWrapping="Wrap" />
+                            <grid:PropertyGridControl
                             HorizontalAlignment="Stretch"
                             VerticalAlignment="Stretch"
                             PropertyGridTheme="Light"
                             ShowReadOnlyProperties="False"
                             SelectedObject="{x:Bind LiveRichEditBox, Mode=OneWay}" />
+                        </StackPanel>
                     </Grid>
                 </Border>
             </Grid>
