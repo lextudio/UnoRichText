@@ -302,6 +302,34 @@ public sealed class RichEditTextDocumentTests
         AssertParagraphRanges(document, (0, 2), (3, 5));
     }
 
+    [Test]
+    public void Typing_BoldThenItalicOnly_CreatesExpectedRuns()
+    {
+        var document = CreateDocument(string.Empty);
+        document.Selection.SetRange(0, 0);
+
+        document.Selection.CharacterFormat.Bold = FormatEffect.On;
+        document.Selection.CharacterFormat.Italic = FormatEffect.Off;
+        document.Selection.TypeText("Hello ");
+
+        document.Selection.CharacterFormat.Bold = FormatEffect.Off;
+        document.Selection.CharacterFormat.Italic = FormatEffect.On;
+        document.Selection.TypeText("world!");
+
+        AssertText(document, "Hello world!");
+
+        var runs = document.GetCharacterFormatRuns();
+        Assert.That(runs, Has.Count.EqualTo(2));
+
+        Assert.That((runs[0].Start, runs[0].End), Is.EqualTo((0, 6)));
+        Assert.That(runs[0].Format.Bold, Is.EqualTo(FormatEffect.On));
+        Assert.That(runs[0].Format.Italic, Is.EqualTo(FormatEffect.Off));
+
+        Assert.That((runs[1].Start, runs[1].End), Is.EqualTo((6, 12)));
+        Assert.That(runs[1].Format.Bold, Is.EqualTo(FormatEffect.Off));
+        Assert.That(runs[1].Format.Italic, Is.EqualTo(FormatEffect.On));
+    }
+
     private static RichEditDocument CreateDocument(string text)
     {
         var document = new RichEditDocument();
