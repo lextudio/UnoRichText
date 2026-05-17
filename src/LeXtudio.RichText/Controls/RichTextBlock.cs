@@ -21,6 +21,7 @@ using System.Windows.Documents;
 
 namespace LeXtudio.UI.Xaml.Controls;
 
+[Obsolete("RichTextBlock should not be used. Use RichTextBox instead for production scenarios.")]
 public class RichTextBlock : Panel
 {
     public static DependencyProperty CharacterSpacingProperty { get; } =
@@ -104,6 +105,7 @@ public class RichTextBlock : Panel
     private readonly System.Windows.Documents.BlockCollection _blocks;
     private readonly FocusSink _focusSink = new();
     private readonly RichTextBlockTextLayoutHost _textLayoutHost;
+    private FlowDocument? _documentSource;
 
     private FlatItem[]? _flatItems;
     private int[] _flatItemCharOffsets = Array.Empty<int>();
@@ -111,9 +113,12 @@ public class RichTextBlock : Panel
     private double _totalHeight;
 
     private readonly List<PlacedFragment> _placedFragments = new();
+    private readonly List<PlacedLine> _placedLines = new();
     private int _selectionAnchor = -1;
     private int _selectionFocus = -1;
     private bool _isPointerDown;
+    private bool _hasKeyboardFocus;
+    private double? _preferredCaretX;
     private readonly ObservableCollection<TextHighlighter> _textHighlighters = new();
 
     public RichTextBlock()
@@ -139,6 +144,8 @@ public class RichTextBlock : Panel
         AddHandler(PointerMovedEvent, new PointerEventHandler(OnPointerMoved), true);
         AddHandler(PointerReleasedEvent, new PointerEventHandler(OnPointerReleased), true);
         _focusSink.KeyDown += OnKeyDown;
+        _focusSink.GotFocus += OnFocusSinkGotFocus;
+        _focusSink.LostFocus += OnFocusSinkLostFocus;
         UpdateSelectionCursor();
     }
 
@@ -163,6 +170,7 @@ public class RichTextBlock : Panel
         sb.AppendLine($"=== RichTextBlock {GetHashCode():X8} ===");
         sb.AppendLine($"  Inlines.Count: {_inlines.Count}");
         sb.AppendLine($"  Blocks.Count: {_blocks.Count}");
+        sb.AppendLine($"  DocumentSource.Blocks.Count: {_documentSource?.Blocks.Count.ToString() ?? "null"}");
         sb.AppendLine($"  FlatItems: {(_flatItems?.Length.ToString() ?? "null")}");
         if (_flatItems != null)
         {
@@ -189,6 +197,30 @@ public class RichTextBlock : Panel
     public System.Windows.Documents.ITextLayoutHost TextLayoutHost => _textLayoutHost;
     internal bool IsTextLayoutValid => _preparedSegments.Length == 0 || _flatItems is not null;
     internal double ExtentHeight => _totalHeight;
+
+    internal void SetDocumentSource(FlowDocument? document)
+    {
+        if (ReferenceEquals(_documentSource, document))
+        {
+            return;
+        }
+
+        if (_documentSource is not null)
+        {
+            DetachBlockHandlers(_documentSource.Blocks);
+            _documentSource.Blocks.CollectionChanged -= OnDocumentBlocksChanged;
+        }
+
+        _documentSource = document;
+
+        if (_documentSource is not null)
+        {
+            _documentSource.Blocks.CollectionChanged += OnDocumentBlocksChanged;
+            AttachBlockHandlers(_documentSource.Blocks);
+        }
+
+        InvalidateMeasure();
+    }
 
     public double BaselineOffset => 0d;
     public int CharacterSpacing
@@ -539,7 +571,10 @@ public class RichTextBlock : Panel
     {
         target.Children.Clear();
         if (recordHitTest)
+        {
             _placedFragments.Clear();
+            _placedLines.Clear();
+        }
 
         if (_preparedSegments.Length == 0 || _flatItems == null)
         {
@@ -554,6 +589,9 @@ public class RichTextBlock : Panel
         var selMax = Math.Max(_selectionAnchor, _selectionFocus);
         var hasSelection = IsTextSelectionEnabled && _selectionAnchor >= 0 && _selectionFocus >= 0
                            && _selectionAnchor != _selectionFocus;
+        var showCaret = IsTextSelectionEnabled && _hasKeyboardFocus && _selectionAnchor >= 0 && _selectionAnchor == _selectionFocus;
+        var caretOffset = _selectionFocus >= 0 ? _selectionFocus : 0;
+        var caretDrawn = false;
         var consumedPerItem = new Dictionary<int, int>();
 
         foreach (var seg in _preparedSegments)
@@ -643,6 +681,11 @@ public class RichTextBlock : Panel
 
                 var visualY = currentY - verticalOffset;
                 var lineVisible = visualY + lineHeight >= 0 && visualY <= viewportHeight;
+                if (recordHitTest)
+                {
+                    _placedLines.Add(BuildPlacedLine(lineFragments, visualY, lineHeight));
+                }
+
                 if (lineVisible)
                 {
                     foreach (var placed in lineFragments)
@@ -692,6 +735,20 @@ public class RichTextBlock : Panel
                             target.Children.Add(placed.Element);
                         }
                     }
+
+                    if (showCaret && !caretDrawn && TryGetCaretX(lineFragments, caretOffset, out var caretX))
+                    {
+                        var caretRect = new Rectangle
+                        {
+                            Width = 1,
+                            Height = Math.Max(1, lineHeight),
+                            Fill = CloneBrush(Foreground) ?? SelectionBrush,
+                        };
+                        Canvas.SetLeft(caretRect, caretX);
+                        Canvas.SetTop(caretRect, visualY);
+                        target.Children.Add(caretRect);
+                        caretDrawn = true;
+                    }
                 }
 
                 currentY += lineHeight;
@@ -732,6 +789,68 @@ public class RichTextBlock : Panel
         _ => brush
     };
 
+    private static bool TryGetCaretX(List<PendingPlacedFragment> lineFragments, int caretOffset, out double caretX)
+    {
+        caretX = 0;
+        if (lineFragments.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var fragment in lineFragments)
+        {
+            if (caretOffset < fragment.CharStart || caretOffset > fragment.CharEnd)
+            {
+                continue;
+            }
+
+            var fragmentLength = fragment.CharEnd - fragment.CharStart;
+            if (fragmentLength <= 0)
+            {
+                caretX = fragment.X;
+                return true;
+            }
+
+            var t = (double)(caretOffset - fragment.CharStart) / fragmentLength;
+            caretX = fragment.X + (t * fragment.Width);
+            return true;
+        }
+
+        var last = lineFragments[^1];
+        if (caretOffset >= last.CharEnd)
+        {
+            caretX = last.X + last.Width;
+            return true;
+        }
+
+        var first = lineFragments[0];
+        if (caretOffset <= first.CharStart)
+        {
+            caretX = first.X;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static PlacedLine BuildPlacedLine(List<PendingPlacedFragment> lineFragments, double y, double height)
+    {
+        if (lineFragments.Count == 0)
+        {
+            return new PlacedLine(0, 0, y, height, 0, 0);
+        }
+
+        var first = lineFragments[0];
+        var last = lineFragments[^1];
+        return new PlacedLine(
+            first.X,
+            last.X + last.Width,
+            y,
+            height,
+            first.CharStart,
+            last.CharEnd);
+    }
+
     // ── Text selection ────────────────────────────────────────────────
 
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
@@ -741,14 +860,13 @@ public class RichTextBlock : Panel
 
         _focusSink.Focus(FocusState.Pointer);
         var pt = e.GetCurrentPoint(this).Position;
-        var idx = HitTest(pt);
+        var idx = HitTest(pt, clampToContent: true);
         if (idx < 0) return;
         NotifyGroupSelectionStarting();
-        _selectionAnchor = idx;
-        _selectionFocus = idx;
+        _preferredCaretX = null;
+        SetSelection(idx, idx);
         _isPointerDown = true;
         CapturePointer(e.Pointer);
-        InvalidateArrange();
         e.Handled = true;
     }
 
@@ -759,8 +877,8 @@ public class RichTextBlock : Panel
         var idx = HitTest(pt, clampToContent: true);
         if (idx >= 0)
         {
-            _selectionFocus = idx;
-            InvalidateArrange();
+            _preferredCaretX = null;
+            SetSelection(_selectionAnchor >= 0 ? _selectionAnchor : idx, idx);
         }
         e.Handled = true;
     }
@@ -793,19 +911,51 @@ public class RichTextBlock : Panel
     private void OnKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (!IsTextSelectionEnabled) return;
+
+        var shift = (InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)
+                     & CoreVirtualKeyStates.Down) != 0;
         var ctrl = (InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
                     & CoreVirtualKeyStates.Down) != 0;
-        if (!ctrl) return;
 
-        if (e.Key == VirtualKey.A)
+        if (ctrl && e.Key == VirtualKey.A)
         {
             SelectAll();
             e.Handled = true;
         }
-        else if (e.Key == VirtualKey.C)
+        else if (ctrl && e.Key == VirtualKey.C)
         {
             CopySelectionToClipboard();
             e.Handled = true;
+        }
+        else if (!ctrl)
+        {
+            switch (e.Key)
+            {
+                case VirtualKey.Left:
+                    MoveCaret(-1, shift);
+                    e.Handled = true;
+                    break;
+                case VirtualKey.Right:
+                    MoveCaret(1, shift);
+                    e.Handled = true;
+                    break;
+                case VirtualKey.Home:
+                    MoveCaretTo(0, shift);
+                    e.Handled = true;
+                    break;
+                case VirtualKey.End:
+                    MoveCaretTo(TextLength, shift);
+                    e.Handled = true;
+                    break;
+                case VirtualKey.Up:
+                    MoveCaretVertical(-1, shift);
+                    e.Handled = true;
+                    break;
+                case VirtualKey.Down:
+                    MoveCaretVertical(1, shift);
+                    e.Handled = true;
+                    break;
+            }
         }
     }
 
@@ -814,38 +964,53 @@ public class RichTextBlock : Panel
 
     private int HitTest(Point pt, bool clampToContent)
     {
-        if (_flatItemCharOffsets.Length == 0)
+        if (_flatItemCharOffsets.Length == 0 || _placedLines.Count == 0)
             return -1;
 
-        PlacedFragment? best = null;
-        double bestDist = double.MaxValue;
-
-        foreach (var frag in _placedFragments)
-        {
-            var dx = pt.X < frag.X ? frag.X - pt.X :
-                pt.X > frag.X + frag.Width ? pt.X - (frag.X + frag.Width) : 0;
-            var dy = pt.Y < frag.Y ? frag.Y - pt.Y :
-                pt.Y > frag.Y + frag.Height ? pt.Y - (frag.Y + frag.Height) : 0;
-            var dist = (dy * dy * 4) + (dx * dx);
-
-            if (dist < bestDist) { bestDist = dist; best = frag; }
-        }
-
-        if (best is null)
+        var line = FindNearestLine(pt.Y);
+        if (line is null)
             return clampToContent
                 ? pt.Y < 0 ? 0 : TextLength
                 : -1;
 
-        if (pt.X >= best.X && pt.X <= best.X + best.Width
-            && pt.Y >= best.Y && pt.Y <= best.Y + best.Height)
+        var fragments = _placedFragments
+            .Where(f => Math.Abs(f.Y - line.Y) < 0.5)
+            .OrderBy(f => f.X)
+            .ToList();
+
+        if (fragments.Count == 0)
         {
-            var len = best.CharEnd - best.CharStart;
-            if (len == 0) return clampToContent ? best.CharStart : -1;
-            var t = (pt.X - best.X) / best.Width;
-            return best.CharStart + (int)Math.Round(t * len);
+            return clampToContent
+                ? pt.X <= line.StartX ? line.StartOffset : line.EndOffset
+                : -1;
         }
 
-        return pt.X <= best.X ? best.CharStart : best.CharEnd;
+        foreach (var fragment in fragments)
+        {
+            if (pt.X < fragment.X)
+                return fragment.CharStart;
+
+            if (pt.X <= fragment.X + fragment.Width)
+                return HitTestWithinFragment(fragment, pt.X, clampToContent);
+        }
+
+        var last = fragments[^1];
+        return pt.X > last.X + last.Width
+            ? last.CharEnd
+            : HitTestWithinFragment(last, pt.X, clampToContent);
+    }
+
+    private int HitTestWithinFragment(PlacedFragment fragment, double x, bool clampToContent)
+    {
+        if (x >= fragment.X && x <= fragment.X + fragment.Width)
+        {
+            var len = fragment.CharEnd - fragment.CharStart;
+            if (len == 0) return clampToContent ? fragment.CharStart : -1;
+            var t = (x - fragment.X) / fragment.Width;
+            return fragment.CharStart + (int)Math.Round(t * len);
+        }
+
+        return x <= fragment.X ? fragment.CharStart : fragment.CharEnd;
     }
 
     private int TextLength => _flatItemCharOffsets.Length == 0 ? 0 : _flatItemCharOffsets[^1];
@@ -896,6 +1061,148 @@ public class RichTextBlock : Panel
     private void ClearSelectionSilent()
     {
         SetSelection(-1, -1, raiseSelectionChanged: false);
+    }
+
+    private void MoveCaret(int delta, bool extendSelection)
+    {
+        var current = _selectionFocus >= 0
+            ? _selectionFocus
+            : Math.Clamp(_selectionAnchor, 0, TextLength);
+
+        if (!extendSelection && HasExpandedSelection)
+        {
+            current = delta < 0
+                ? Math.Min(_selectionAnchor, _selectionFocus)
+                : Math.Max(_selectionAnchor, _selectionFocus);
+        }
+
+        _preferredCaretX = null;
+        MoveCaretTo(current + delta, extendSelection);
+    }
+
+    private void MoveCaretTo(int offset, bool extendSelection)
+    {
+        var clamped = Math.Clamp(offset, 0, TextLength);
+        if (extendSelection)
+        {
+            var anchor = _selectionAnchor >= 0
+                ? _selectionAnchor
+                : (_selectionFocus >= 0 ? _selectionFocus : clamped);
+            SetSelection(anchor, clamped);
+            return;
+        }
+
+        SetSelection(clamped, clamped);
+    }
+
+    private void MoveCaretVertical(int lineDelta, bool extendSelection)
+    {
+        if (_placedLines.Count == 0)
+        {
+            return;
+        }
+
+        var currentOffset = _selectionFocus >= 0
+            ? _selectionFocus
+            : Math.Clamp(_selectionAnchor, 0, TextLength);
+        var currentLine = FindLineForOffset(currentOffset) ?? _placedLines[0];
+        var currentIndex = _placedLines.IndexOf(currentLine);
+        var targetIndex = Math.Clamp(currentIndex + lineDelta, 0, _placedLines.Count - 1);
+        if (targetIndex == currentIndex)
+        {
+            return;
+        }
+
+        _preferredCaretX ??= GetCaretXForOffset(currentOffset);
+        var targetLine = _placedLines[targetIndex];
+        var targetOffset = GetOffsetForLineX(targetLine, _preferredCaretX.Value);
+        MoveCaretTo(targetOffset, extendSelection);
+    }
+
+    private PlacedLine? FindNearestLine(double y)
+    {
+        if (_placedLines.Count == 0)
+        {
+            return null;
+        }
+
+        PlacedLine? best = null;
+        var bestDistance = double.MaxValue;
+        foreach (var line in _placedLines)
+        {
+            var distance = y < line.Y ? line.Y - y :
+                y > line.Y + line.Height ? y - (line.Y + line.Height) : 0;
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = line;
+            }
+        }
+
+        return best;
+    }
+
+    private PlacedLine? FindLineForOffset(int offset)
+    {
+        foreach (var line in _placedLines)
+        {
+            if (offset >= line.StartOffset && offset <= line.EndOffset)
+            {
+                return line;
+            }
+        }
+
+        if (_placedLines.Count == 0)
+        {
+            return null;
+        }
+
+        return offset <= _placedLines[0].StartOffset ? _placedLines[0] : _placedLines[^1];
+    }
+
+    private double GetCaretXForOffset(int offset)
+    {
+        var line = FindLineForOffset(offset);
+        if (line is null)
+        {
+            return 0;
+        }
+
+        var fragments = _placedFragments
+            .Where(f => Math.Abs(f.Y - line.Y) < 0.5)
+            .OrderBy(f => f.X)
+            .ToList();
+
+        return TryGetCaretX(
+            fragments.Select(f => new PendingPlacedFragment(null!, null!, f.X, f.Y, f.Width, f.CharStart, f.CharEnd, f.Text)).ToList(),
+            offset,
+            out var caretX)
+            ? caretX
+            : line.StartX;
+    }
+
+    private int GetOffsetForLineX(PlacedLine line, double x)
+    {
+        var fragments = _placedFragments
+            .Where(f => Math.Abs(f.Y - line.Y) < 0.5)
+            .OrderBy(f => f.X)
+            .ToList();
+
+        if (fragments.Count == 0)
+        {
+            return line.StartOffset;
+        }
+
+        foreach (var fragment in fragments)
+        {
+            if (x < fragment.X)
+                return fragment.CharStart;
+
+            if (x <= fragment.X + fragment.Width)
+                return HitTestWithinFragment(fragment, x, clampToContent: true);
+        }
+
+        return fragments[^1].CharEnd;
     }
 
     private static List<RichTextBlock> GetLiveBlocks()
@@ -956,22 +1263,26 @@ public class RichTextBlock : Panel
             SelectionChanged?.Invoke(this, new RoutedEventArgs());
     }
 
+    private bool HasExpandedSelection =>
+        _selectionAnchor >= 0 && _selectionFocus >= 0 && _selectionAnchor != _selectionFocus;
+
     // ── Content collection ────────────────────────────────────────────
 
     private void CollectFlatItems(List<FlatItem> result, InheritedProperties root)
     {
-        DiagLog($"CollectFlatItems: root.Foreground={root.Foreground} blocks={_blocks.Count} inlines={_inlines.Count}");
+        var blocks = ActiveBlocks;
+        DiagLog($"CollectFlatItems: root.Foreground={root.Foreground} blocks={blocks.Count} inlines={_inlines.Count}");
         if (_inlines.Count > 0)
         {
             FlattenInlines(_inlines, result, root);
             return;
         }
 
-        for (var i = 0; i < _blocks.Count; i++)
+        for (var i = 0; i < blocks.Count; i++)
         {
             if (i > 0)
                 result.Add(new TextRunItem("\n", root));
-            if (_blocks[i] is Paragraph bp)
+            if (blocks[i] is Paragraph bp)
             {
                 var blockProps = root;
                 if (InheritedProperties.IsExplicitFontSize(bp.FontSize))
@@ -1000,17 +1311,74 @@ public class RichTextBlock : Panel
     private InheritedProperties RootProperties() => new(
         FontFamily, FontSize, FontWeight, FontStyle, FontStretch, CharacterSpacing, Foreground, TextDecorations.None);
 
+    private System.Windows.Documents.BlockCollection ActiveBlocks => _documentSource?.Blocks ?? _blocks;
+
     private void OnContentChanged(object? sender, NotifyCollectionChangedEventArgs e)
         => InvalidateMeasure();
 
+    private void OnFocusSinkGotFocus(object sender, RoutedEventArgs e)
+    {
+        _hasKeyboardFocus = true;
+        if (_selectionAnchor < 0 || _selectionFocus < 0)
+        {
+            SetSelection(0, 0, raiseSelectionChanged: false);
+        }
+        else
+        {
+            InvalidateArrange();
+        }
+    }
+
+    private void OnFocusSinkLostFocus(object sender, RoutedEventArgs e)
+    {
+        _hasKeyboardFocus = false;
+        InvalidateArrange();
+    }
+
     private void OnBlocksChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.NewItems is not null)
-        {
-            foreach (var item in e.NewItems)
-                if (item is Paragraph p) p.Inlines.CollectionChanged += OnContentChanged;
-        }
+        AttachBlockHandlers(e.NewItems);
+        DetachBlockHandlers(e.OldItems);
         InvalidateMeasure();
+    }
+
+    private void OnDocumentBlocksChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        AttachBlockHandlers(e.NewItems);
+        DetachBlockHandlers(e.OldItems);
+        InvalidateMeasure();
+    }
+
+    private void AttachBlockHandlers(System.Collections.IEnumerable? items)
+    {
+        if (items is null)
+        {
+            return;
+        }
+
+        foreach (var item in items)
+        {
+            if (item is Paragraph paragraph)
+            {
+                paragraph.Inlines.CollectionChanged += OnContentChanged;
+            }
+        }
+    }
+
+    private void DetachBlockHandlers(System.Collections.IEnumerable? items)
+    {
+        if (items is null)
+        {
+            return;
+        }
+
+        foreach (var item in items)
+        {
+            if (item is Paragraph paragraph)
+            {
+                paragraph.Inlines.CollectionChanged -= OnContentChanged;
+            }
+        }
     }
 
     private void OnTextHighlightersChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -1149,6 +1517,8 @@ public class RichTextBlock : Panel
 
     private record PlacedFragment(double X, double Y, double Width, double Height,
         int CharStart, int CharEnd, string Text);
+
+    private record PlacedLine(double StartX, double EndX, double Y, double Height, int StartOffset, int EndOffset);
 
     // ── Focus sink for keyboard events ────────────────────────────────
 

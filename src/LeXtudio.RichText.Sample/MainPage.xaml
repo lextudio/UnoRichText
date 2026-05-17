@@ -221,15 +221,35 @@
                             Padding="16"
                             Background="#F5F5F5"
                             CornerRadius="8">
-                            <rt:RichTextBox
-                                x:Name="LiveWpfRichTextBox"
-                                Background="Transparent"
-                                MinHeight="220" />
+                            <Grid RowSpacing="12">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Click="SelectAllWpfRichTextBox_Click" Content="Select all" />
+                                    <Button Click="CopyWpfRichTextBoxSelection_Click" Content="Copy selection" />
+                                </StackPanel>
+                                <rt:RichTextBox
+                                    x:Name="LiveWpfRichTextBox"
+                                    Grid.Row="1"
+                                    Background="Transparent"
+                                    MinHeight="220"
+                                    SelectionChanged="LiveWpfRichTextBox_SelectionChanged" />
+                                <TextBlock
+                                    x:Name="WpfRichTextBoxSelectionStatus"
+                                    Grid.Row="2"
+                                    FontSize="12"
+                                    Foreground="#5A5A5A"
+                                    Text="Selection: none"
+                                    TextWrapping="Wrap" />
+                            </Grid>
                         </Border>
                         <TextBlock
                             FontSize="13"
                             Foreground="#5A5A5A"
-                            Text="This first milestone hosts a System.Windows.Documents.FlowDocument through the new RichTextBox shim. Rendering is live; editing behavior comes in later phases."
+                            Text="This milestone hosts a System.Windows.Documents.FlowDocument through the new RichTextBox shim, exposes control-level selection APIs, and supports caret movement with Left, Right, Home, End, and Shift-selection."
                             TextWrapping="Wrap" />
                     </StackPanel>
                 </ScrollViewer>

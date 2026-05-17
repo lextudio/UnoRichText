@@ -61,6 +61,7 @@ public sealed partial class MainPage : Page
         document.Blocks.Add(note);
 
         LiveWpfRichTextBox.Document = document;
+        UpdateWpfRichTextBoxSelectionStatus();
     }
 
     private void EnsureGalleryRichTextBlocks()
@@ -419,5 +420,29 @@ public sealed partial class MainPage : Page
     private void LiveUnderlineButton_Click(object sender, RoutedEventArgs e)
     {
         LiveRichEditBox.WrapSelection("__", "__");
+    }
+
+    private void SelectAllWpfRichTextBox_Click(object sender, RoutedEventArgs e)
+    {
+        LiveWpfRichTextBox.SelectAll();
+        UpdateWpfRichTextBoxSelectionStatus();
+    }
+
+    private void CopyWpfRichTextBoxSelection_Click(object sender, RoutedEventArgs e)
+    {
+        LiveWpfRichTextBox.CopySelectionToClipboard();
+    }
+
+    private void LiveWpfRichTextBox_SelectionChanged(object sender, RoutedEventArgs e)
+    {
+        UpdateWpfRichTextBoxSelectionStatus();
+    }
+
+    private void UpdateWpfRichTextBoxSelectionStatus()
+    {
+        var selectedText = LiveWpfRichTextBox.SelectedText;
+        WpfRichTextBoxSelectionStatus.Text = string.IsNullOrEmpty(selectedText)
+            ? "Selection: none"
+            : $"Selection: {selectedText}";
     }
 }

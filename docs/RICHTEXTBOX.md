@@ -112,6 +112,27 @@ Acceptance:
 - Promote files from `<None>` to `<Compile>` only when the slice compiles in
   the WindowsShims environment.
 
+Current concrete slice:
+
+- `System.Windows.Controls.Primitives.TextBoxBase`
+- `System.Windows.Controls.RichTextBox`
+- `System.Windows.Documents.TextSelection`
+- `System.Windows.Documents.TextEditor`
+- `System.Windows.Documents.TextRange`
+- `System.Windows.Documents.TextContainer`
+
+Current file-shape rule for this slice:
+
+- Prefer upstream WPF files tracked as `UpstreamWpf/*`.
+- If a slice is not yet compilable, place temporary bridge code in local `*.uno.cs`.
+- Do not grow temporary bridge files into long-term semantic owners; replace them by promoting the real upstream file when the dependency slice is ready.
+
+Porting rule for this slice:
+
+- Prefer matching WPF public and internal shape in `WindowsShims` first.
+- Keep Uno behavior in `UnoRichText` as temporary glue only.
+- Avoid adding new RichTextBlock-specific navigation or editing behavior unless it is required to host the WPF slice.
+
 ### Phase 2 — Source-first typing
 
 - Ensure `WindowsShims` exposes the WPF type surface required by `RichTextBox` consumers.
