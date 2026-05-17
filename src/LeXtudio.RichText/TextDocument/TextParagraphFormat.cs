@@ -1,32 +1,45 @@
-// Skeleton TextParagraphFormat backing ITextParagraphFormat.
+// TextParagraphFormat — public concrete bag implementing Uno's ITextParagraphFormat.
+// Property shapes follow Uno's ITextParagraphFormat exactly.
 
 using System.Collections.Generic;
+using ITextParagraphFormat = Microsoft.UI.Text.ITextParagraphFormat;
+using FormatEffect = Microsoft.UI.Text.FormatEffect;
+using LineSpacingRule = Microsoft.UI.Text.LineSpacingRule;
+using ParagraphAlignment = Microsoft.UI.Text.ParagraphAlignment;
+using ParagraphStyle = Microsoft.UI.Text.ParagraphStyle;
+using MarkerAlignment = Microsoft.UI.Text.MarkerAlignment;
+using MarkerStyle = Microsoft.UI.Text.MarkerStyle;
+using MarkerType = Microsoft.UI.Text.MarkerType;
+using TabAlignment = Microsoft.UI.Text.TabAlignment;
+using TabLeader = Microsoft.UI.Text.TabLeader;
 
-namespace Microsoft.UI.Text;
+namespace LeXtudio.UI.Text;
 
-internal sealed class TextParagraphFormat : ITextParagraphFormat
+public sealed class TextParagraphFormat : ITextParagraphFormat
 {
     private readonly List<(float position, TabAlignment align, TabLeader leader)> _tabs = new();
 
     public ParagraphAlignment Alignment { get; set; } = ParagraphAlignment.Left;
     public float FirstLineIndent { get; internal set; }
-    public bool KeepTogether { get; set; }
-    public bool KeepWithNext { get; set; }
+    public FormatEffect KeepTogether { get; set; } = FormatEffect.Off;
+    public FormatEffect KeepWithNext { get; set; } = FormatEffect.Off;
     public float LeftIndent { get; internal set; }
     public float LineSpacing { get; internal set; }
     public LineSpacingRule LineSpacingRule { get; internal set; } = LineSpacingRule.Single;
-    public ListStyle ListStart { get; set; }
-    public float ListLevelIndex { get; set; }
-    public int ListTab { get; set; }
-    public ListStyle ListType { get; set; }
-    public bool NoLineNumber { get; set; }
-    public bool PageBreakBefore { get; set; }
+    public MarkerAlignment ListAlignment { get; set; } = MarkerAlignment.Left;
+    public int ListLevelIndex { get; set; }
+    public int ListStart { get; set; }
+    public MarkerStyle ListStyle { get; set; } = MarkerStyle.Undefined;
+    public float ListTab { get; set; }
+    public MarkerType ListType { get; set; } = MarkerType.None;
+    public FormatEffect NoLineNumber { get; set; } = FormatEffect.Off;
+    public FormatEffect PageBreakBefore { get; set; } = FormatEffect.Off;
     public float RightIndent { get; set; }
-    public bool RightToLeft { get; set; }
-    public int Style { get; set; }
+    public FormatEffect RightToLeft { get; set; } = FormatEffect.Off;
+    public ParagraphStyle Style { get; set; } = ParagraphStyle.Normal;
     public float SpaceAfter { get; set; }
     public float SpaceBefore { get; set; }
-    public bool WidowControl { get; set; }
+    public FormatEffect WidowControl { get; set; } = FormatEffect.Off;
     public int TabCount => _tabs.Count;
 
     public void AddTab(float position, TabAlignment align, TabLeader leader)
@@ -57,8 +70,10 @@ internal sealed class TextParagraphFormat : ITextParagraphFormat
             LeftIndent = LeftIndent,
             LineSpacing = LineSpacing,
             LineSpacingRule = LineSpacingRule,
-            ListStart = ListStart,
+            ListAlignment = ListAlignment,
             ListLevelIndex = ListLevelIndex,
+            ListStart = ListStart,
+            ListStyle = ListStyle,
             ListTab = ListTab,
             ListType = ListType,
             NoLineNumber = NoLineNumber,
@@ -90,51 +105,38 @@ internal sealed class TextParagraphFormat : ITextParagraphFormat
         return Alignment == o.Alignment && FirstLineIndent == o.FirstLineIndent
             && KeepTogether == o.KeepTogether && KeepWithNext == o.KeepWithNext
             && LeftIndent == o.LeftIndent && LineSpacing == o.LineSpacing
-            && LineSpacingRule == o.LineSpacingRule && ListStart == o.ListStart
-            && ListLevelIndex == o.ListLevelIndex && ListTab == o.ListTab
-            && ListType == o.ListType && NoLineNumber == o.NoLineNumber
-            && PageBreakBefore == o.PageBreakBefore && RightIndent == o.RightIndent
-            && RightToLeft == o.RightToLeft && Style == o.Style
-            && SpaceAfter == o.SpaceAfter && SpaceBefore == o.SpaceBefore
+            && LineSpacingRule == o.LineSpacingRule && ListAlignment == o.ListAlignment
+            && ListLevelIndex == o.ListLevelIndex && ListStart == o.ListStart
+            && ListStyle == o.ListStyle && ListTab == o.ListTab && ListType == o.ListType
+            && NoLineNumber == o.NoLineNumber && PageBreakBefore == o.PageBreakBefore
+            && RightIndent == o.RightIndent && RightToLeft == o.RightToLeft
+            && Style == o.Style && SpaceAfter == o.SpaceAfter && SpaceBefore == o.SpaceBefore
             && WidowControl == o.WidowControl;
     }
 
     public void SetClone(ITextParagraphFormat format)
     {
         if (format is not TextParagraphFormat o) return;
-        Alignment = o.Alignment;
-        FirstLineIndent = o.FirstLineIndent;
-        KeepTogether = o.KeepTogether;
-        KeepWithNext = o.KeepWithNext;
-        LeftIndent = o.LeftIndent;
-        LineSpacing = o.LineSpacing;
-        LineSpacingRule = o.LineSpacingRule;
-        ListStart = o.ListStart;
-        ListLevelIndex = o.ListLevelIndex;
-        ListTab = o.ListTab;
-        ListType = o.ListType;
-        NoLineNumber = o.NoLineNumber;
-        PageBreakBefore = o.PageBreakBefore;
-        RightIndent = o.RightIndent;
-        RightToLeft = o.RightToLeft;
-        Style = o.Style;
-        SpaceAfter = o.SpaceAfter;
-        SpaceBefore = o.SpaceBefore;
+        Alignment = o.Alignment; FirstLineIndent = o.FirstLineIndent;
+        KeepTogether = o.KeepTogether; KeepWithNext = o.KeepWithNext;
+        LeftIndent = o.LeftIndent; LineSpacing = o.LineSpacing;
+        LineSpacingRule = o.LineSpacingRule; ListAlignment = o.ListAlignment;
+        ListLevelIndex = o.ListLevelIndex; ListStart = o.ListStart;
+        ListStyle = o.ListStyle; ListTab = o.ListTab; ListType = o.ListType;
+        NoLineNumber = o.NoLineNumber; PageBreakBefore = o.PageBreakBefore;
+        RightIndent = o.RightIndent; RightToLeft = o.RightToLeft;
+        Style = o.Style; SpaceAfter = o.SpaceAfter; SpaceBefore = o.SpaceBefore;
         WidowControl = o.WidowControl;
-        _tabs.Clear();
-        _tabs.AddRange(o._tabs);
+        _tabs.Clear(); _tabs.AddRange(o._tabs);
     }
 
     public void SetIndents(float start, float left, float right)
     {
-        FirstLineIndent = start;
-        LeftIndent = left;
-        RightIndent = right;
+        FirstLineIndent = start; LeftIndent = left; RightIndent = right;
     }
 
     public void SetLineSpacing(LineSpacingRule rule, float spacing)
     {
-        LineSpacingRule = rule;
-        LineSpacing = spacing;
+        LineSpacingRule = rule; LineSpacing = spacing;
     }
 }

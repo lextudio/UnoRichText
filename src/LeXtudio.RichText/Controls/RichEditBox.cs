@@ -8,6 +8,7 @@
 
 using System;
 using Microsoft.UI.Text;
+using LeXtudioTextDoc = LeXtudio.UI.Text.RichEditTextDocument;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -121,7 +122,13 @@ public partial class RichEditBox : Control
     public object? Description { get => GetValue(DescriptionProperty); set => SetValue(DescriptionProperty, value); }
     public CandidateWindowAlignment DesiredCandidateWindowAlignment { get => (CandidateWindowAlignment)GetValue(DesiredCandidateWindowAlignmentProperty); set => SetValue(DesiredCandidateWindowAlignmentProperty, value); }
     public DisabledFormattingAccelerators DisabledFormattingAccelerators { get => (DisabledFormattingAccelerators)GetValue(DisabledFormattingAcceleratorsProperty); set => SetValue(DisabledFormattingAcceleratorsProperty, value); }
-    public RichEditTextDocument Document { get; }
+    /// <summary>
+    /// The text document model. WinUI 3 types this as <c>Microsoft.UI.Text.RichEditTextDocument</c>;
+    /// we expose <c>LeXtudio.UI.Text.RichEditTextDocument</c> because Uno's concrete class is
+    /// majority-stubbed and non-virtual. Cast to <c>Microsoft.UI.Text.ITextDocument</c> for the
+    /// WinUI-shape API. See docs/DESIGN.md "Document model for RichEditBox".
+    /// </summary>
+    public LeXtudioTextDoc Document { get; }
     public object? Header { get => GetValue(HeaderProperty); set => SetValue(HeaderProperty, value); }
     public DataTemplate? HeaderTemplate { get => (DataTemplate?)GetValue(HeaderTemplateProperty); set => SetValue(HeaderTemplateProperty, value); }
     public TextAlignment HorizontalTextAlignment { get => (TextAlignment)GetValue(HorizontalTextAlignmentProperty); set => SetValue(HorizontalTextAlignmentProperty, value); }
@@ -163,7 +170,7 @@ public partial class RichEditBox : Control
     public RichEditBox()
     {
         DefaultStyleKey = typeof(RichEditBox);
-        Document = new RichEditTextDocument();
+        Document = new LeXtudioTextDoc();
     }
 
     // ---- Methods (parity-shaped) ------------------------------------------------
@@ -171,7 +178,7 @@ public partial class RichEditBox : Control
     /// <summary>Selects all the content in the RichEditBox.</summary>
     public void SelectAll()
     {
-        Document.GetText(TextGetOptions.None, out var current);
+        Document.GetText(Microsoft.UI.Text.TextGetOptions.None, out var current);
         Document.Selection.SetRange(0, current?.Length ?? 0);
     }
 

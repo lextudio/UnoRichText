@@ -1,6 +1,6 @@
 # RichTextBlock API Parity with WinUI 3
 
-**Coverage: 84.5%** (990 / 1171 WinUI 3 members)
+**Coverage: 87.9%** (1751 / 1991 WinUI 3 members)
 
 **Goal:** 100% API parity with WinUI 3.
 
@@ -12,6 +12,8 @@
 | Type | Coverage | Matched | Mismatched | Missing |
 |---|---:|---:|---:|---:|
 | `RichTextBlock` | 95.7% | 356 | 3 | 13 |
+| `RichTextBlockOverflow` | 93.4% | 295 | 4 | 17 |
+| `RichEditBox` | 93.9% | 400 | 8 | 18 |
 | `Block` | 82.7% | 62 | 2 | 11 |
 | `Paragraph` | 79.0% | 64 | 4 | 13 |
 | `Inline` | 87.5% | 56 | 3 | 5 |
@@ -23,6 +25,8 @@
 | `Hyperlink` | 55.9% | 57 | 8 | 37 |
 | `LineBreak` | 84.8% | 56 | 4 | 6 |
 | `InlineUIContainer` | 85.1% | 57 | 4 | 6 |
+| `RichEditTextDocument` | 77.4% | 24 | 3 | 4 |
+| `RichEditTextRange` | 89.4% | 42 | 1 | 4 |
 
 ## Gap by Member Kind
 
@@ -31,6 +35,8 @@ Where the work is concentrated. Each cell counts WinUI 3 members of that kind th
 | Type | Property | Method | Event | DP Field |
 |---|---:|---:|---:|---:|
 | `RichTextBlock` | 1 | 15 | 0 | 0 |
+| `RichTextBlockOverflow` | 5 | 16 | 0 | 0 |
+| `RichEditBox` | 3 | 19 | 4 | 0 |
 | `Block` | 6 | 7 | 0 | 0 |
 | `Paragraph` | 7 | 10 | 0 | 0 |
 | `Inline` | 2 | 6 | 0 | 0 |
@@ -42,6 +48,8 @@ Where the work is concentrated. Each cell counts WinUI 3 members of that kind th
 | `Hyperlink` | 30 | 12 | 3 | 0 |
 | `LineBreak` | 2 | 8 | 0 | 0 |
 | `InlineUIContainer` | 2 | 8 | 0 | 0 |
+| `RichEditTextDocument` | 2 | 5 | 0 | 0 |
+| `RichEditTextRange` | 0 | 5 | 0 | 0 |
 
 ## RichTextBlock
 
@@ -69,6 +77,75 @@ Where the work is concentrated. Each cell counts WinUI 3 members of that kind th
 | :x: Missing | Method | `UIElement FromAbi(IntPtr thisPtr)` | `—` |
 | :x: Missing | Method | `DependencyObject FromAbi(IntPtr thisPtr)` | `—` |
 | :x: Missing | Method | `Int32 GetHashCode()` | `—` |
+
+## RichTextBlockOverflow
+
+- **WinUI 3:** `Microsoft.UI.Xaml.Controls.RichTextBlockOverflow`
+- **Subject:** `LeXtudio.UI.Xaml.Controls.RichTextBlockOverflow`
+- **Coverage:** 93.4% (295/316 WinUI 3 members)
+
+### Gaps
+
+| Status | Kind | WinUI 3 signature | Subject signature |
+|---|---|---|---|
+| :warning: Mismatch | Property | `RichTextBlock ContentSource { get; }` | `DependencyObject ContentSource { get; set; }` |
+| :warning: Mismatch | Property | `FocusState FocusState { get; }` | `FocusState FocusState { get; set; }` |
+| :warning: Mismatch | Method | `BindingExpression GetBindingExpression(DependencyProperty dp)` | `BindingExpression GetBindingExpression(DependencyProperty dependencyProperty)` |
+| :warning: Mismatch | Method | `Void SetBinding(DependencyProperty dp, BindingBase binding)` | `Void SetBinding(Object target, String dependencyProperty, BindingBase binding)` |
+| :x: Missing | Property | `Double BaselineOffset { get; }` | `—` |
+| :x: Missing | Property | `TextPointer ContentEnd { get; }` | `—` |
+| :x: Missing | Property | `TextPointer ContentStart { get; }` | `—` |
+| :x: Missing | Method | `I As()` | `—` |
+| :x: Missing | Method | `I As()` | `—` |
+| :x: Missing | Method | `I As()` | `—` |
+| :x: Missing | Method | `Boolean Equals(RichTextBlockOverflow other)` | `—` |
+| :x: Missing | Method | `Boolean Equals(Object obj)` | `—` |
+| :x: Missing | Method | `Boolean Equals(FrameworkElement other)` | `—` |
+| :x: Missing | Method | `Boolean Equals(UIElement other)` | `—` |
+| :x: Missing | Method | `Boolean Equals(DependencyObject other)` | `—` |
+| :x: Missing | Method | `RichTextBlockOverflow FromAbi(IntPtr thisPtr)` | `—` |
+| :x: Missing | Method | `FrameworkElement FromAbi(IntPtr thisPtr)` | `—` |
+| :x: Missing | Method | `UIElement FromAbi(IntPtr thisPtr)` | `—` |
+| :x: Missing | Method | `DependencyObject FromAbi(IntPtr thisPtr)` | `—` |
+| :x: Missing | Method | `Int32 GetHashCode()` | `—` |
+| :x: Missing | Method | `TextPointer GetPositionFromPoint(Point point)` | `—` |
+
+## RichEditBox
+
+- **WinUI 3:** `Microsoft.UI.Xaml.Controls.RichEditBox`
+- **Subject:** `LeXtudio.UI.Xaml.Controls.RichEditBox`
+- **Coverage:** 93.9% (400/426 WinUI 3 members)
+
+### Gaps
+
+| Status | Kind | WinUI 3 signature | Subject signature |
+|---|---|---|---|
+| :warning: Mismatch | Property | `FocusState FocusState { get; }` | `FocusState FocusState { get; set; }` |
+| :warning: Mismatch | Property | `FlyoutBase ProofingMenuFlyout { get; }` | `FlyoutBase ProofingMenuFlyout { get; set; }` |
+| :warning: Mismatch | Method | `BindingExpression GetBindingExpression(DependencyProperty dp)` | `BindingExpression GetBindingExpression(DependencyProperty dependencyProperty)` |
+| :warning: Mismatch | Method | `IAsyncOperation<IReadOnlyList<String>> GetLinguisticAlternativesAsync()` | `RichEditTextRangeAlternatives GetLinguisticAlternativesAsync()` |
+| :warning: Mismatch | Method | `Void SetBinding(DependencyProperty dp, BindingBase binding)` | `Void SetBinding(Object target, String dependencyProperty, BindingBase binding)` |
+| :warning: Mismatch | Event | `event TypedEventHandler<RichEditBox, TextCompositionChangedEventArgs> TextCompositionChanged` | `event TypedEventHandler<RichEditBox, RichEditBoxTextCompositionChangedEventArgs> TextCompositionChanged` |
+| :warning: Mismatch | Event | `event TypedEventHandler<RichEditBox, TextCompositionEndedEventArgs> TextCompositionEnded` | `event TypedEventHandler<RichEditBox, RichEditBoxTextCompositionEndedEventArgs> TextCompositionEnded` |
+| :warning: Mismatch | Event | `event TypedEventHandler<RichEditBox, TextCompositionStartedEventArgs> TextCompositionStarted` | `event TypedEventHandler<RichEditBox, RichEditBoxTextCompositionStartedEventArgs> TextCompositionStarted` |
+| :x: Missing | Property | `RichEditTextDocument TextDocument { get; }` | `—` |
+| :x: Missing | Method | `I As()` | `—` |
+| :x: Missing | Method | `I As()` | `—` |
+| :x: Missing | Method | `I As()` | `—` |
+| :x: Missing | Method | `I As()` | `—` |
+| :x: Missing | Method | `Boolean Equals(RichEditBox other)` | `—` |
+| :x: Missing | Method | `Boolean Equals(Object obj)` | `—` |
+| :x: Missing | Method | `Boolean Equals(Control other)` | `—` |
+| :x: Missing | Method | `Boolean Equals(FrameworkElement other)` | `—` |
+| :x: Missing | Method | `Boolean Equals(UIElement other)` | `—` |
+| :x: Missing | Method | `Boolean Equals(DependencyObject other)` | `—` |
+| :x: Missing | Method | `RichEditBox FromAbi(IntPtr thisPtr)` | `—` |
+| :x: Missing | Method | `Control FromAbi(IntPtr thisPtr)` | `—` |
+| :x: Missing | Method | `FrameworkElement FromAbi(IntPtr thisPtr)` | `—` |
+| :x: Missing | Method | `UIElement FromAbi(IntPtr thisPtr)` | `—` |
+| :x: Missing | Method | `DependencyObject FromAbi(IntPtr thisPtr)` | `—` |
+| :x: Missing | Method | `Int32 GetHashCode()` | `—` |
+| :x: Missing | Event | `event ContextMenuOpeningEventHandler ContextMenuOpening` | `—` |
 
 ## Block
 
@@ -355,6 +432,40 @@ Where the work is concentrated. Each cell counts WinUI 3 members of that kind th
 | :x: Missing | Method | `Inline FromAbi(IntPtr thisPtr)` | `—` |
 | :x: Missing | Method | `TextElement FromAbi(IntPtr thisPtr)` | `—` |
 | :x: Missing | Method | `DependencyObject FromAbi(IntPtr thisPtr)` | `—` |
+
+## RichEditTextDocument
+
+- **WinUI 3:** `Microsoft.UI.Text.RichEditTextDocument`
+- **Subject:** `LeXtudio.UI.Text.RichEditTextDocument`
+- **Coverage:** 77.4% (24/31 WinUI 3 members)
+
+### Gaps
+
+| Status | Kind | WinUI 3 signature | Subject signature |
+|---|---|---|---|
+| :warning: Mismatch | Property | `Single DefaultTabStop { get; set; }` | `Int32 DefaultTabStop { get; set; }` |
+| :warning: Mismatch | Property | `UInt32 UndoLimit { get; set; }` | `Boolean UndoLimit { get; set; }` |
+| :warning: Mismatch | Method | `Int32 ApplyDisplayUpdates()` | `Void ApplyDisplayUpdates()` |
+| :x: Missing | Method | `Boolean Equals(RichEditTextDocument other)` | `—` |
+| :x: Missing | Method | `Boolean Equals(Object obj)` | `—` |
+| :x: Missing | Method | `RichEditTextDocument FromAbi(IntPtr thisPtr)` | `—` |
+| :x: Missing | Method | `Int32 GetHashCode()` | `—` |
+
+## RichEditTextRange
+
+- **WinUI 3:** `Microsoft.UI.Text.RichEditTextRange`
+- **Subject:** `LeXtudio.UI.Text.RichEditTextRange`
+- **Coverage:** 89.4% (42/47 WinUI 3 members)
+
+### Gaps
+
+| Status | Kind | WinUI 3 signature | Subject signature |
+|---|---|---|---|
+| :warning: Mismatch | Method | `Void Collapse(Boolean value)` | `Void Collapse(Boolean start)` |
+| :x: Missing | Method | `Boolean Equals(RichEditTextRange other)` | `—` |
+| :x: Missing | Method | `Boolean Equals(Object obj)` | `—` |
+| :x: Missing | Method | `RichEditTextRange FromAbi(IntPtr thisPtr)` | `—` |
+| :x: Missing | Method | `Int32 GetHashCode()` | `—` |
 
 ---
 _Generated by `tools/RichTextBlockCompat`. Reference is real WinUI 3 metadata (Microsoft.WinUI.dll from Windows App SDK), loaded via System.Reflection.MetadataLoadContext. The check is unidirectional (WinUI → Subject); extra members on the subject side do not count as incompatibilities._

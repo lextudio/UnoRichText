@@ -49,13 +49,34 @@ For document types, new parity members go into `Type.uno.cs` partials. If a type
 
 ### Document model for `RichEditBox`
 
-`RichEditBox` exposes its content through `Microsoft.UI.Text.RichEditTextDocument` (the `Document` property) — distinct from the inline `System.Windows.Documents.*` model used by `RichTextBlock`. The bridge types we own:
+`RichEditBox` exposes its content through `Microsoft.UI.Text.RichEditTextDocument` (the `Document` property). Distinct from the inline `System.Windows.Documents.*` model used by `RichTextBlock`.
 
-- `Microsoft.UI.Text.RichEditTextDocument` (and its base `Microsoft.UI.Text.ITextDocument`)
-- `Microsoft.UI.Text.ITextRange`, `ITextSelection`, `ITextCharacterFormat`, `ITextParagraphFormat`
-- enum/struct support types in `Microsoft.UI.Text.*`
+We do **not** redeclare types Uno already provides correctly. We do replace the ones Uno only stubs.
 
-These do not inherit from the WinUI types; they are our own declarations that match the WinUI shapes member-for-member.
+**Audit method:** decompile `Uno.UI.dll`, scan IL for short bodies that contain a `throw` opcode (`0x7A`) — that signals a `throw new NotImplementedException()` stub. The tooling for this is in `tools/UnoTextDocAudit` (small `System.Reflection.Metadata` consumer).
+
+**Verdict from the current audit (Uno.WinUI 6.5.153):**
+
+| Type | Status in Uno | Our action |
+|---|---|---|
+| `Microsoft.UI.Text.ITextDocument`, `ITextRange`, `ITextSelection`, `ITextCharacterFormat`, `ITextParagraphFormat` | Interfaces are fully declared | **Use Uno's** |
+| All `Microsoft.UI.Text.*` enums (`CaretType`, `FormatEffect`, `LineSpacingRule`, `LinkType`, `ParagraphAlignment`, `PointOptions`, `RichEditMathMode`, `SelectionOptions`, `SelectionType`, `TabAlignment`, `TabLeader`, `TextGetOptions`, `TextRangeUnit`, `TextScript`, `TextSetOptions`, `UnderlineType`, `VerticalCharacterAlignment`, `HorizontalCharacterAlignment`, `FindOptions`, `LetterCase`, `MarkerAlignment`, `MarkerStyle`, `MarkerType`, `RangeGravity`, `ParagraphStyle`) | All present | **Use Uno's** |
+| `Microsoft.UI.Text.FontWeights` | Fully implemented (17/17 methods real) | **Use Uno's** |
+| `Microsoft.UI.Text.TextConstants` | All 8 members are throw-stubs | **Ship our own** (`LeXtudio.UI.Text.TextConstants`) |
+| `Microsoft.UI.Text.RichEditTextDocument` | 20 of 36 methods are throw-stubs, **class is non-virtual** so derivation can't override them, **constructor is internal** so we can't even derive without ourselves being in Uno | **Ship our own** at `LeXtudio.UI.Text.RichEditTextDocument`, expose it from `RichEditBox.Document` |
+| `Microsoft.UI.Text.RichEditTextRange` | 29 of 52 methods are throw-stubs, **virtual** but **internal constructor** | **Ship our own** at `LeXtudio.UI.Text.RichEditTextRange : ITextRange` |
+| (selection) | Uno has no separate `RichEditTextSelection` class — `ITextSelection` is implemented inline | **Ship our own** `LeXtudio.UI.Text.RichEditTextSelection : ITextSelection` |
+| Format-bag concrete types | Uno does not ship public concrete `ITextCharacterFormat` / `ITextParagraphFormat` classes | **Ship our own** `LeXtudio.UI.Text.TextCharacterFormat` / `TextParagraphFormat` (implement Uno's interfaces) |
+
+**Naming convention:** all of our replacement types live under the `LeXtudio.UI.Text` namespace and reuse the WinUI names directly (e.g. `LeXtudio.UI.Text.RichEditTextDocument`). The namespace difference is enough to disambiguate from Uno's stubbed types; we do not decorate the type name with a "LeXtudio" prefix.
+
+**Why `RichEditBox.Document` then returns `LeXtudio.UI.Text.LeXtudioRichEditTextDocument` instead of `Microsoft.UI.Text.RichEditTextDocument`:**
+
+- Uno's `RichEditTextDocument` has an `internal` constructor, so we cannot instantiate it from `LeXtudio.RichText`.
+- Its 36 methods are **non-virtual** — derivation cannot replace the stub bodies (`new`-shadowing only works when callers reach us through the derived static type, which WinUI consumers won't).
+- The closest faithful surface we can ship is our own concrete type that implements `Microsoft.UI.Text.ITextDocument`. Consumers cast to the interface to get parity-shaped access.
+
+The compat tool's `TypePairs` entry for the Document property pairs `Microsoft.UI.Xaml.Controls.RichEditBox.Document` against `LeXtudio.UI.Xaml.Controls.RichEditBox.Document` — the property-signature comparison will flag the return-type difference as a `:warning: Mismatch`. This is an intentional, documented divergence rather than a missing member, and consumers who type their variable as `ITextDocument` see identical behavior.
 
 ### Shim layer
 

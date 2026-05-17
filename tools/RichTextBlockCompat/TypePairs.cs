@@ -58,25 +58,19 @@ public static class TypePairs
             "Microsoft.UI.Xaml.Documents.InlineUIContainer",
             "System.Windows.Documents.InlineUIContainer"),
 
-        // RichEditBox text-document model (Microsoft.UI.Text.*)
-        new TypePair(
-            "Microsoft.UI.Text.ITextDocument",
-            "Microsoft.UI.Text.ITextDocument"),
+        // RichEditBox text-document model.
+        //
+        // Uno's Microsoft.UI.Text.RichEditTextDocument and RichEditTextRange are
+        // majority-stubbed (audited via IL inspection — see docs/DESIGN.md).
+        // We ship working replacements under LeXtudio.UI.Text.*.
+        // The interfaces, enums, and supporting types in Microsoft.UI.Text.* come
+        // from Uno and are not duplicated.
         new TypePair(
             "Microsoft.UI.Text.RichEditTextDocument",
-            "Microsoft.UI.Text.RichEditTextDocument"),
+            "LeXtudio.UI.Text.RichEditTextDocument"),
         new TypePair(
-            "Microsoft.UI.Text.ITextRange",
-            "Microsoft.UI.Text.ITextRange"),
-        new TypePair(
-            "Microsoft.UI.Text.ITextSelection",
-            "Microsoft.UI.Text.ITextSelection"),
-        new TypePair(
-            "Microsoft.UI.Text.ITextCharacterFormat",
-            "Microsoft.UI.Text.ITextCharacterFormat"),
-        new TypePair(
-            "Microsoft.UI.Text.ITextParagraphFormat",
-            "Microsoft.UI.Text.ITextParagraphFormat"),
+            "Microsoft.UI.Text.RichEditTextRange",
+            "LeXtudio.UI.Text.RichEditTextRange"),
     };
 }
 

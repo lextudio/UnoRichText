@@ -1,15 +1,17 @@
-// Skeleton TextSelection implementation backing RichEditTextDocument.Selection.
-// Inherits TextRange and adds the selection-only members.
+// RichEditTextSelection — implementation of Microsoft.UI.Text.ITextSelection.
 
-namespace Microsoft.UI.Text;
+using ITextSelection = Microsoft.UI.Text.ITextSelection;
+using SelectionOptions = Microsoft.UI.Text.SelectionOptions;
+using SelectionType = Microsoft.UI.Text.SelectionType;
+using TextRangeUnit = Microsoft.UI.Text.TextRangeUnit;
 
-internal sealed class TextSelection : TextRange, ITextSelection
+namespace LeXtudio.UI.Text;
+
+internal sealed class RichEditTextSelection : RichEditTextRange, ITextSelection
 {
-    public TextSelection(RichEditTextDocument document) : base(document, 0, 0)
-    {
-    }
+    public RichEditTextSelection(RichEditTextDocument document) : base(document, 0, 0) { }
 
-    public SelectionOptions Options { get; set; } = SelectionOptions.None;
+    public SelectionOptions Options { get; set; } = 0;
     public SelectionType Type => Length == 0 ? SelectionType.InsertionPoint : SelectionType.Normal;
 
     public int EndKey(TextRangeUnit unit, bool extend)
@@ -27,27 +29,30 @@ internal sealed class TextSelection : TextRange, ITextSelection
         return 0;
     }
 
-    public void MoveDown(TextRangeUnit unit, int count, bool extend) { /* TODO: line nav once layout exists */ }
-    public void MoveUp(TextRangeUnit unit, int count, bool extend) { /* TODO */ }
+    public int MoveDown(TextRangeUnit unit, int count, bool extend) => 0;
+    public int MoveUp(TextRangeUnit unit, int count, bool extend) => 0;
 
-    public void MoveLeft(TextRangeUnit unit, int count, bool extend)
+    public int MoveLeft(TextRangeUnit unit, int count, bool extend)
     {
         int target = System.Math.Max(0, StartPosition - count);
+        int moved = StartPosition - target;
         SetRange(target, extend ? EndPosition : target);
+        return moved;
     }
 
-    public void MoveRight(TextRangeUnit unit, int count, bool extend)
+    public int MoveRight(TextRangeUnit unit, int count, bool extend)
     {
         int target = System.Math.Min(_document.Buffer.Length, EndPosition + count);
+        int moved = target - EndPosition;
         if (extend) SetRange(StartPosition, target);
         else SetRange(target, target);
+        return moved;
     }
 
     public void TypeText(string value)
     {
         if (string.IsNullOrEmpty(value)) return;
         Text = value;
-        // After typing, collapse to end-of-insertion.
         int newPos = StartPosition + value.Length;
         SetRange(newPos, newPos);
     }

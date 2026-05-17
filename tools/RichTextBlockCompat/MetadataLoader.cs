@@ -113,6 +113,26 @@ public sealed class MetadataLoader : IDisposable
             var t = asm.GetType(fullName, throwOnError: false);
             if (t is not null) return t;
         }
+        // Fall back to any assembly the load context has loaded (e.g. LeXtudio.Windows.dll
+        // resolved transitively through the path resolver when it wasn't included as a primary
+        // subject DLL).
+        foreach (var asm in Context.GetAssemblies())
+        {
+            // Don't pick anything from the WinUI reference assembly.
+            if (asm == WinUIReference) continue;
+            var t = asm.GetType(fullName, throwOnError: false);
+            if (t is not null) return t;
+        }
+        // As a last resort, force-resolve from the LeXtudio.Windows assembly under the path
+        // resolver. The resolver was seeded with deps.json + cache paths, so requesting it
+        // by name triggers a load.
+        try
+        {
+            var leXWin = Context.LoadFromAssemblyName("LeXtudio.Windows");
+            var t = leXWin?.GetType(fullName, throwOnError: false);
+            if (t is not null) return t;
+        }
+        catch { /* swallow — assembly genuinely absent */ }
         return null;
     }
 
@@ -169,14 +189,57 @@ public sealed class MetadataLoader : IDisposable
                 "Rebuild the tool — the ProjectReference should have triggered LeXtudio.RichText to build.");
 
         var richText = Path.Combine(outputDir, "LeXtudio.RichText.dll");
-        var windowsShim = Path.Combine(outputDir, "LeXtudio.Windows.dll");
         if (!File.Exists(richText))
             throw new InvalidOperationException($"LeXtudio.RichText.dll missing: {richText}");
-        if (!File.Exists(windowsShim))
-            throw new InvalidOperationException($"LeXtudio.Windows.dll missing: {windowsShim}");
-
         yield return richText;
-        yield return windowsShim;
+
+        // LeXtudio.Windows.dll: prefer the copy next to LeXtudio.RichText.dll. When LeXtudio.RichText
+        // consumes LeXtudio.Windows via NuGet (UseNuGetPackage=true), that file is not copied to bin —
+        // the deps.json scan + GetSubjectType fallback below will resolve types from the NuGet cache.
+        var windowsShim = Path.Combine(outputDir, "LeXtudio.Windows.dll");
+        if (File.Exists(windowsShim))
+            yield return windowsShim;
+        // else: do not throw; the runtime DLL is reachable through deps.json + GetSubjectType.
+    }
+
+    private static string? FindLeXtudioWindowsInNuGetCache()
+    {
+        var nuget = Environment.GetEnvironmentVariable("NUGET_PACKAGES")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                            ".nuget", "packages");
+        var pkgDir = Path.Combine(nuget, "lextudio.windows");
+        if (!Directory.Exists(pkgDir)) return null;
+
+        // Sort version folders by parsed semver so 0.6.11 > 0.6.5 (string sort gets this wrong).
+        var versions = Directory.EnumerateDirectories(pkgDir)
+            .Select(p => (Path: p, Version: ParseSemver(Path.GetFileName(p))))
+            .Where(t => t.Version is not null)
+            .OrderByDescending(t => t.Version!.Value.major)
+            .ThenByDescending(t => t.Version!.Value.minor)
+            .ThenByDescending(t => t.Version!.Value.patch)
+            .ToList();
+
+        foreach (var (versionPath, _) in versions)
+        {
+            var libRoot = Path.Combine(versionPath, "lib");
+            if (!Directory.Exists(libRoot)) continue;
+            foreach (var tfm in Directory.EnumerateDirectories(libRoot).OrderByDescending(d => d))
+            {
+                var dll = Path.Combine(tfm, "LeXtudio.Windows.dll");
+                if (File.Exists(dll)) return dll;
+            }
+        }
+        return null;
+    }
+
+    private static (int major, int minor, int patch)? ParseSemver(string s)
+    {
+        var parts = s.Split('-')[0].Split('.');
+        if (parts.Length < 3) return null;
+        if (!int.TryParse(parts[0], out var ma)) return null;
+        if (!int.TryParse(parts[1], out var mi)) return null;
+        if (!int.TryParse(parts[2], out var pa)) return null;
+        return (ma, mi, pa);
     }
 
     /// <summary>
