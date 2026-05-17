@@ -7,27 +7,125 @@ using CommunityToolkit.WinUI.Controls;
 using UnoPropertyGrid;
 using Windows.UI;
 using LeXtudioRTB = LeXtudio.UI.Xaml.Controls.RichTextBlock;
+using LeXtudioReb = LeXtudio.UI.Xaml.Controls.RichEditBox;
 
 namespace LeXtudio.RichText.Sample;
 
 /// <summary>
-/// Interactive sample page — shows inline-code and multi-line code-block scenarios and a live RichTextBlock property inspector.
-/// Launch with no arguments to see this page.  Pass --diag for automated exit-code testing.
+/// Interactive sample page — hosts two tabs:
+///   1. RichTextBlock: live preview + property grid for the read-only rich-text control.
+///   2. RichEditBox:   live editable preview + property grid for the editable rich-text control.
+/// Launch with no arguments to see this page. Pass --diag for automated exit-code testing.
 /// </summary>
 public sealed class MainPage : Page
 {
-    private readonly LeXtudioRTB _liveRichTextBlock;
-
     public MainPage()
     {
-        _liveRichTextBlock = BuildLiveRichTextPreview();
+        var tabView = new TabView
+        {
+            IsAddTabButtonVisible = false,
+            CanReorderTabs = false,
+            CanDragTabs = false,
+        };
 
+        tabView.TabItems.Add(new TabViewItem
+        {
+            Header = "RichTextBlock",
+            IsClosable = false,
+            Content = BuildRichTextBlockTab(),
+        });
+
+        tabView.TabItems.Add(new TabViewItem
+        {
+            Header = "RichEditBox",
+            IsClosable = false,
+            Content = BuildRichEditBoxTab(),
+        });
+
+        Content = tabView;
+    }
+
+    // ── RichTextBlock tab ────────────────────────────────────────────────────────
+
+    private static UIElement BuildRichTextBlockTab()
+    {
+        var liveRichTextBlock = BuildLiveRichTextPreview();
+
+        var leftPanel = new StackPanel { Spacing = 24 };
+        leftPanel.Children.Add(SectionLabel("Live RichTextBlock Preview"));
+        leftPanel.Children.Add(new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(255, 245, 245, 245)),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(16),
+            Child = liveRichTextBlock,
+        });
+
+        leftPanel.Children.Add(SectionLabel("Inline Code (InlineUIContainer)"));
+        leftPanel.Children.Add(BuildInlineCodeBlock());
+
+        leftPanel.Children.Add(SectionLabel("Multi-Line Code Block (syntax-highlighted, 4 lines)"));
+        leftPanel.Children.Add(new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(255, 30, 30, 30)),
+            Padding = new Thickness(12, 8, 12, 8),
+            Child = BuildMultiLineCodeBlock(),
+        });
+
+        leftPanel.Children.Add(SectionLabel("Plain Paragraph"));
+        leftPanel.Children.Add(BuildPlainParagraph());
+
+        return BuildPreviewWithPropertyGrid(
+            leftContent: leftPanel,
+            propertyTarget: liveRichTextBlock,
+            propertyPanelHeader: "RichTextBlock Properties");
+    }
+
+    // ── RichEditBox tab ──────────────────────────────────────────────────────────
+
+    private static UIElement BuildRichEditBoxTab()
+    {
+        var liveRichEditBox = BuildLiveRichEditBoxPreview();
+
+        var leftPanel = new StackPanel { Spacing = 24 };
+        leftPanel.Children.Add(SectionLabel("Live RichEditBox Preview"));
+        leftPanel.Children.Add(new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(255, 245, 245, 245)),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(16),
+            Child = liveRichEditBox,
+        });
+
+        leftPanel.Children.Add(SectionLabel("Notes"));
+        leftPanel.Children.Add(new TextBlock
+        {
+            Text = "RichEditBox is the editable rich-text control. Edit the text on the left and "
+                + "tweak properties on the right. Use Ctrl+B / Ctrl+I / Ctrl+U for inline formatting "
+                + "once the editor pipeline is wired.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Color.FromArgb(255, 90, 90, 90)),
+        });
+
+        return BuildPreviewWithPropertyGrid(
+            leftContent: leftPanel,
+            propertyTarget: liveRichEditBox,
+            propertyPanelHeader: "RichEditBox Properties");
+    }
+
+    // ── Shared preview-with-property-grid layout ─────────────────────────────────
+
+    private static UIElement BuildPreviewWithPropertyGrid(UIElement leftContent, object propertyTarget, string propertyPanelHeader)
+    {
         var propertyGrid = new PropertyGridControl
         {
-            SelectedObject = _liveRichTextBlock,
+            SelectedObject = propertyTarget,
             PropertyGridTheme = ElementTheme.Light,
             ShowReadOnlyProperties = false,
-            Margin = new Thickness(0, 8, 0, 0)
+            Margin = new Thickness(0, 8, 0, 0),
+            VerticalAlignment = VerticalAlignment.Stretch,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
 
         var rightPanelContent = new Grid { RowSpacing = 12 };
@@ -37,14 +135,11 @@ public sealed class MainPage : Page
         var headerPanel = new StackPanel { Spacing = 12 };
         headerPanel.Children.Add(new TextBlock
         {
-            Text = "RichTextBlock Properties",
+            Text = propertyPanelHeader,
             FontSize = 18,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 4)
+            Margin = new Thickness(0, 0, 0, 4),
         });
-
-        propertyGrid.VerticalAlignment = VerticalAlignment.Stretch;
-        propertyGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
 
         rightPanelContent.Children.Add(headerPanel);
         rightPanelContent.Children.Add(propertyGrid);
@@ -57,47 +152,21 @@ public sealed class MainPage : Page
             Padding = new Thickness(16),
             Background = new SolidColorBrush(Color.FromArgb(255, 250, 250, 250)),
             CornerRadius = new CornerRadius(12),
-            VerticalAlignment = VerticalAlignment.Stretch
+            VerticalAlignment = VerticalAlignment.Stretch,
         };
 
         var root = new Grid { Padding = new Thickness(24), ColumnSpacing = 16 };
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 200 });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var propertyPanelColumn = new ColumnDefinition { Width = new GridLength(320), MinWidth = 200 };
-        root.ColumnDefinitions.Add(propertyPanelColumn);
-
-        var leftPanel = new StackPanel { Spacing = 24 };
-        leftPanel.Children.Add(SectionLabel("Live RichTextBlock Preview"));
-        leftPanel.Children.Add(new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(255, 245, 245, 245)),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(16),
-            Child = _liveRichTextBlock
-        });
-
-        leftPanel.Children.Add(SectionLabel("Inline Code (InlineUIContainer)"));
-        leftPanel.Children.Add(BuildInlineCodeBlock());
-
-        leftPanel.Children.Add(SectionLabel("Multi-Line Code Block (syntax-highlighted, 4 lines)"));
-        leftPanel.Children.Add(new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(255, 30, 30, 30)),
-            Padding = new Thickness(12, 8, 12, 8),
-            Child = BuildMultiLineCodeBlock()
-        });
-
-        leftPanel.Children.Add(SectionLabel("Plain Paragraph"));
-        leftPanel.Children.Add(BuildPlainParagraph());
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(320), MinWidth = 200 });
 
         var leftScroller = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = leftPanel
+            Content = leftContent,
         };
-
         Grid.SetColumn(leftScroller, 0);
 
         var splitter = new GridSplitter
@@ -106,7 +175,7 @@ public sealed class MainPage : Page
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Stretch,
             ResizeDirection = GridSplitter.GridResizeDirection.Columns,
-            Background = new SolidColorBrush(Color.FromArgb(64, 128, 128, 128))
+            Background = new SolidColorBrush(Color.FromArgb(64, 128, 128, 128)),
         };
         Grid.SetColumn(splitter, 1);
         Grid.SetColumn(propertyPanelWrapper, 2);
@@ -115,7 +184,7 @@ public sealed class MainPage : Page
         root.Children.Add(splitter);
         root.Children.Add(propertyPanelWrapper);
 
-        Content = root;
+        return root;
     }
 
     private static TextBlock SectionLabel(string text) => new()
@@ -123,8 +192,10 @@ public sealed class MainPage : Page
         Text = text,
         FontSize = 11,
         Foreground = new SolidColorBrush(Color.FromArgb(255, 130, 130, 130)),
-        Margin = new Thickness(0, 8, 0, 0)
+        Margin = new Thickness(0, 8, 0, 0),
     };
+
+    // ── RichTextBlock builders ───────────────────────────────────────────────────
 
     private static LeXtudioRTB BuildLiveRichTextPreview()
     {
@@ -132,7 +203,7 @@ public sealed class MainPage : Page
         {
             FontSize = 15,
             LineHeight = 24,
-            Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0))
+            Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0)),
         };
 
         var paragraph = new Paragraph();
@@ -175,9 +246,9 @@ public sealed class MainPage : Page
                     Text = "myFunction()",
                     FontFamily = new FontFamily("Courier New"),
                     FontSize = 13,
-                    Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 220, 170))
-                }
-            }
+                    Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 220, 170)),
+                },
+            },
         });
         p.Inlines.Add(new Run { Text = " to proceed." });
         rtb.Blocks.Add(p);
@@ -235,5 +306,27 @@ public sealed class MainPage : Page
         p.Inlines.Add(new Run { Text = " paragraph with normal text wrapping." });
         rtb.Blocks.Add(p);
         return rtb;
+    }
+
+    // ── RichEditBox builders ─────────────────────────────────────────────────────
+
+    private static LeXtudioReb BuildLiveRichEditBoxPreview()
+    {
+        var reb = new LeXtudioReb
+        {
+            FontSize = 15,
+            MinHeight = 200,
+            PlaceholderText = "Start typing…",
+            Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0)),
+        };
+
+        reb.Document.SetText(
+            Microsoft.UI.Text.TextSetOptions.None,
+            "Edit this text. The property grid on the right binds directly to this " +
+            "RichEditBox instance, so changes (FontSize, IsReadOnly, PlaceholderText, " +
+            "TextWrapping, …) apply immediately.\n\nFull editing — caret, selection, IME, " +
+            "undo/redo, clipboard — is implemented incrementally as the engine lands; the " +
+            "API surface is already 93%+ aligned with WinUI 3.");
+        return reb;
     }
 }
