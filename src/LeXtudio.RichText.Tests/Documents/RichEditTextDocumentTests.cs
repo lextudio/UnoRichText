@@ -148,6 +148,61 @@ public sealed class RichEditTextDocumentTests
         AssertBoldRuns(document, (0, 1));
     }
 
+    [Test]
+    public void UndoRedo_Insert_RestoresAndReappliesRuns()
+    {
+        var document = CreateDocument("Hello");
+        document.GetRange(1, 4).CharacterFormat.Bold = FormatEffect.On;
+
+        InsertText(document, 2, "X");
+        Assert.That(document.CanUndo(), Is.True);
+        Assert.That(document.CanRedo(), Is.False);
+        AssertText(document, "HeXllo");
+        AssertBoldRuns(document, (1, 5));
+
+        document.Undo();
+        Assert.That(document.CanRedo(), Is.True);
+        AssertText(document, "Hello");
+        AssertBoldRuns(document, (1, 4));
+
+        document.Redo();
+        AssertText(document, "HeXllo");
+        AssertBoldRuns(document, (1, 5));
+    }
+
+    [Test]
+    public void UndoRedo_Delete_RestoresAndReappliesRuns()
+    {
+        var document = CreateDocument("abcdef");
+        document.GetRange(2, 5).CharacterFormat.Bold = FormatEffect.On;
+
+        DeleteRange(document, 0, 3);
+        AssertText(document, "def");
+        AssertBoldRuns(document, (0, 2));
+
+        document.Undo();
+        AssertText(document, "abcdef");
+        AssertBoldRuns(document, (2, 5));
+
+        document.Redo();
+        AssertText(document, "def");
+        AssertBoldRuns(document, (0, 2));
+    }
+
+    [Test]
+    public void UndoThenNewEdit_ClearsRedoHistory()
+    {
+        var document = CreateDocument("abc");
+
+        InsertText(document, 1, "X");
+        document.Undo();
+        Assert.That(document.CanRedo(), Is.True);
+
+        InsertText(document, 1, "Y");
+        Assert.That(document.CanRedo(), Is.False);
+        AssertText(document, "aYbc");
+    }
+
     private static RichEditDocument CreateDocument(string text)
     {
         var document = new RichEditDocument();

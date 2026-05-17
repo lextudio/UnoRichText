@@ -45,10 +45,13 @@ public sealed class RichEditTextDocument
 
     private readonly StringBuilder _buffer = new();
     private readonly List<CharacterFormatRun> _characterFormatRuns = new();
+    private readonly Stack<EditOperation> _undoStack = new();
+    private readonly Stack<EditOperation> _redoStack = new();
     private readonly RichEditTextSelection _selection;
     private TextCharacterFormat _defaultCharacterFormat = new();
     private TextParagraphFormat _defaultParagraphFormat = new();
     private int _batchCount;
+    private bool _isReplayingHistory;
 
     public RichEditTextDocument()
     {
@@ -65,13 +68,13 @@ public sealed class RichEditTextDocument
 
     public bool CanCopy() => _selection.Length > 0;
     public bool CanPaste() => true;
-    public bool CanRedo() => false;
-    public bool CanUndo() => false;
+    public bool CanRedo() => _redoStack.Count > 0;
+    public bool CanUndo() => _undoStack.Count > 0;
 
     public void ApplyDisplayUpdates() { if (_batchCount > 0) _batchCount--; }
     public int BatchDisplayUpdates() => ++_batchCount;
-    public void BeginUndoGroup() { /* TODO: undo stack */ }
-    public void EndUndoGroup() { /* TODO: undo stack */ }
+    public void BeginUndoGroup() { /* TODO: group operations */ }
+    public void EndUndoGroup() { /* TODO: group operations */ }
 
     public void GetText(TextGetOptions options, out string value)
     {
@@ -87,11 +90,30 @@ public sealed class RichEditTextDocument
     public void LoadFromStream(TextSetOptions options, IRandomAccessStream value)
     {
         _buffer.Clear();
+        _characterFormatRuns.Clear();
+        ClearUndoRedoHistory();
         // TODO: port WPF RtfToXamlReader for FormatRtf.
     }
 
-    public void Redo() { /* TODO: undo stack */ }
-    public void Undo() { /* TODO: undo stack */ }
+    public void Redo()
+    {
+        if (_redoStack.Count == 0)
+            return;
+
+        var operation = _redoStack.Pop();
+        ReplaySnapshot(operation.After);
+        _undoStack.Push(operation);
+    }
+
+    public void Undo()
+    {
+        if (_undoStack.Count == 0)
+            return;
+
+        var operation = _undoStack.Pop();
+        ReplaySnapshot(operation.Before);
+        _redoStack.Push(operation);
+    }
 
     public void SaveToStream(TextGetOptions options, IRandomAccessStream value)
     {
@@ -123,6 +145,7 @@ public sealed class RichEditTextDocument
         if (!string.IsNullOrEmpty(value))
             _buffer.Append(value);
         _selection.SetRange(0, 0);
+        ClearUndoRedoHistory();
         TextChanged?.Invoke(this, System.EventArgs.Empty);
     }
 
@@ -132,6 +155,7 @@ public sealed class RichEditTextDocument
         if (text.Length == 0)
             return;
 
+        var before = CaptureSnapshot();
         offset = Math.Clamp(offset, 0, _buffer.Length);
         int delta = text.Length;
 
@@ -169,16 +193,27 @@ public sealed class RichEditTextDocument
         if (explicitFormat is not null)
             ApplyCharacterFormat(offset, offset + delta, explicitFormat);
 
+        RecordEditOperation(new EditOperation(
+            offset,
+            string.Empty,
+            text,
+            new List<RichEditCharacterFormatRun>(),
+            before,
+            CaptureSnapshot()));
+
         TextChanged?.Invoke(this, System.EventArgs.Empty);
     }
 
     internal void DeleteRange(int start, int end)
     {
+        var before = CaptureSnapshot();
         start = Math.Clamp(start, 0, _buffer.Length);
         end = Math.Clamp(end, start, _buffer.Length);
         if (end <= start)
             return;
 
+        string deletedText = _buffer.ToString(start, end - start);
+        var deletedRuns = CaptureRunsInRange(start, end);
         int deletedLength = end - start;
         _buffer.Remove(start, deletedLength);
 
@@ -210,10 +245,23 @@ public sealed class RichEditTextDocument
         _characterFormatRuns.Clear();
         _characterFormatRuns.AddRange(MergeAdjacentRuns(nextRuns.OrderBy(run => run.Start)));
         _selection.SetRange(Math.Min(_selection.StartPosition, _buffer.Length), Math.Min(_selection.EndPosition, _buffer.Length));
+
+        RecordEditOperation(new EditOperation(
+            start,
+            deletedText,
+            string.Empty,
+            deletedRuns,
+            before,
+            CaptureSnapshot()));
+
         TextChanged?.Invoke(this, System.EventArgs.Empty);
     }
 
-    public void ClearUndoRedoHistory() { /* TODO: clear undo stack */ }
+    public void ClearUndoRedoHistory()
+    {
+        _undoStack.Clear();
+        _redoStack.Clear();
+    }
     public void SetMathMode(RichEditMathMode mode) => MathMode = mode;
     public RichEditMathMode GetMathMode() => MathMode;
     public string GetMathML() => string.Empty;
@@ -322,5 +370,65 @@ public sealed class RichEditTextDocument
             yield return previous;
     }
 
+    private DocumentSnapshot CaptureSnapshot()
+        => new(
+            _buffer.ToString(),
+            CloneRuns(_characterFormatRuns),
+            (TextCharacterFormat)_defaultCharacterFormat.GetClone());
+
+    private List<RichEditCharacterFormatRun> CaptureRunsInRange(int start, int end)
+    {
+        if (end <= start)
+            return new List<RichEditCharacterFormatRun>();
+
+        return _characterFormatRuns
+            .Where(run => run.End > start && run.Start < end)
+            .Select(run => new RichEditCharacterFormatRun(run.Start, run.End, (TextCharacterFormat)run.Format.GetClone()))
+            .ToList();
+    }
+
+    private static List<CharacterFormatRun> CloneRuns(IEnumerable<CharacterFormatRun> runs)
+        => runs.Select(run => new CharacterFormatRun(run.Start, run.End, (TextCharacterFormat)run.Format.GetClone())).ToList();
+
+    private void RecordEditOperation(EditOperation operation)
+    {
+        if (_isReplayingHistory)
+            return;
+
+        _undoStack.Push(operation);
+        _redoStack.Clear();
+    }
+
+    private void ReplaySnapshot(DocumentSnapshot snapshot)
+    {
+        _isReplayingHistory = true;
+        try
+        {
+            _buffer.Clear();
+            _buffer.Append(snapshot.Text);
+
+            _characterFormatRuns.Clear();
+            _characterFormatRuns.AddRange(CloneRuns(snapshot.Runs));
+
+            _defaultCharacterFormat = (TextCharacterFormat)snapshot.DefaultCharacterFormat.GetClone();
+            _selection.SetRange(Math.Min(_selection.StartPosition, _buffer.Length), Math.Min(_selection.EndPosition, _buffer.Length));
+        }
+        finally
+        {
+            _isReplayingHistory = false;
+        }
+
+        TextChanged?.Invoke(this, System.EventArgs.Empty);
+        FormattingChanged?.Invoke(this, System.EventArgs.Empty);
+    }
+
     private sealed record CharacterFormatRun(int Start, int End, TextCharacterFormat Format);
+    private sealed record DocumentSnapshot(string Text, List<CharacterFormatRun> Runs, TextCharacterFormat DefaultCharacterFormat);
+    private sealed record EditOperation(
+        int Start,
+        string DeletedText,
+        string InsertedText,
+        List<RichEditCharacterFormatRun> DeletedRuns,
+        DocumentSnapshot Before,
+        DocumentSnapshot After);
 }
