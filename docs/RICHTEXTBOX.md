@@ -77,12 +77,40 @@ This document describes the exact source-first port strategy for bringing WPF `R
 
 ## Implementation phases
 
+### Phase 0 — Compilable host shell
+
+This is the first implementation checkpoint. It is deliberately smaller than the
+full WPF source port so that the sample can move from `RichEditBox` experiments
+to a real `RichTextBox` control without waiting for the entire WPF text editor
+dependency graph to compile.
+
+- Extend the existing `System.Windows.Controls.RichTextBox` compatibility stub
+  in `WindowsShims` with a WPF-shaped `FlowDocument Document` property.
+- Add `LeXtudio.UI.Xaml.Controls.RichTextBox` in `UnoRichText` as the Uno runtime
+  host.
+- Render the `FlowDocument` through the existing `RichTextBlock` renderer.
+- Treat the document model as source of truth. Do not route this milestone
+  through `Microsoft.UI.Text.RichEditTextDocument`.
+- Support document replacement and document content invalidation well enough for
+  samples and tests.
+- Keep editing, caret, selection, IME, clipboard, undo/redo, and upstream WPF
+  `TextEditor` behavior out of this phase.
+
+Acceptance:
+
+- `new RichTextBox().Document` returns a non-null `FlowDocument`.
+- Assigning a `FlowDocument` renders its `Blocks`.
+- The sample can host a `RichTextBox` with paragraphs, bold, italic, underline,
+  hyperlinks, and inline UI using the same document types as `RichTextBlock`.
+
 ### Phase 1 — Audit and import
 
 - Audit the upstream WPF `RichTextBox` implementation and its dependency graph.
 - Pin the exact source files in `dotnet/wpf` needed for the port.
-- Import them into `WindowsShims/src/LeXtudio.Windows` with provenance metadata.
-- Verify the imported source compiles in the WindowsShims environment.
+- Import or link them into `WindowsShims/src/LeXtudio.Windows` with provenance metadata.
+- Keep uncompiled upstream candidates as `<None>` until their dependency slice is ready.
+- Promote files from `<None>` to `<Compile>` only when the slice compiles in
+  the WindowsShims environment.
 
 ### Phase 2 — Source-first typing
 
@@ -96,6 +124,8 @@ This document describes the exact source-first port strategy for bringing WPF `R
 - Use WPF source types for document editing semantics and command handling.
 - Map WPF document state into Uno rendering inputs.
 - Implement any missing runtime plumbing in `UnoRichText` using sibling repo behavior rather than rewriting.
+- Replace the Phase 0 render-only host internals as upstream editing pieces
+  become available, preserving the public `Document` surface.
 
 ### Phase 4 — Behavior completeness
 

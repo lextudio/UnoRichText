@@ -10,6 +10,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
+using FlowDocument = System.Windows.Documents.FlowDocument;
 using Paragraph = System.Windows.Documents.Paragraph;
 using Run = System.Windows.Documents.Run;
 using Hyperlink = System.Windows.Documents.Hyperlink;
@@ -30,8 +31,36 @@ public sealed partial class MainPage : Page
         LiveRichEditBox.Document.SetText(TextSetOptions.None, "Replace me here");
         MathEditor.Document.SetMathMode(RichEditMathMode.MathOnly);
         mathEditor2.Document.SetMathMode(RichEditMathMode.MathOnly);
+        InitializeWpfRichTextBoxSample();
         EnsureGalleryRichTextBlocks();
         UpdateEditorToolbarState();
+    }
+
+    private void InitializeWpfRichTextBoxSample()
+    {
+        var document = new FlowDocument();
+
+        var intro = new Paragraph();
+        intro.Inlines.Add(new Run { Text = "This sample hosts a " });
+        intro.Inlines.Add(new Run { Text = "FlowDocument", FontWeight = FontWeights.SemiBold });
+        intro.Inlines.Add(new Run { Text = " using the new " });
+        intro.Inlines.Add(new Run { Text = "RichTextBox", FontStyle = global::Windows.UI.Text.FontStyle.Italic });
+        intro.Inlines.Add(new Run { Text = " shim surface." });
+        document.Blocks.Add(intro);
+
+        var details = new Paragraph();
+        details.Inlines.Add(new Run { Text = "Formatting, inline runs, and " });
+        var hyperlink = new Hyperlink { NavigateUri = new Uri("https://learn.microsoft.com/dotnet/desktop/wpf/controls/richtextbox-overview") };
+        hyperlink.Inlines.Add(new Run { Text = "hyperlinks" });
+        details.Inlines.Add(hyperlink);
+        details.Inlines.Add(new Run { Text = " are constructed with WPF-shaped document types and rendered through the Uno host." });
+        document.Blocks.Add(details);
+
+        var note = new Paragraph();
+        note.Inlines.Add(new Run { Text = "Editing, caret, and selection parity are planned next.", FontWeight = FontWeights.SemiBold });
+        document.Blocks.Add(note);
+
+        LiveWpfRichTextBox.Document = document;
     }
 
     private void EnsureGalleryRichTextBlocks()

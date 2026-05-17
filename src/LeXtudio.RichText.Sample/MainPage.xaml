@@ -199,6 +199,73 @@
         </TabViewItem>
 
         <TabViewItem
+            Header="RichTextBox"
+            IsClosable="False">
+            <Grid Padding="24" ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition MinWidth="200" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="320" MinWidth="200" />
+                </Grid.ColumnDefinitions>
+
+                <ScrollViewer
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="24">
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            FontSize="11"
+                            Foreground="#828282"
+                            Text="WPF-shaped RichTextBox Preview" />
+                        <Border
+                            Padding="16"
+                            Background="#F5F5F5"
+                            CornerRadius="8">
+                            <rt:RichTextBox
+                                x:Name="LiveWpfRichTextBox"
+                                Background="Transparent"
+                                MinHeight="220" />
+                        </Border>
+                        <TextBlock
+                            FontSize="13"
+                            Foreground="#5A5A5A"
+                            Text="This first milestone hosts a System.Windows.Documents.FlowDocument through the new RichTextBox shim. Rendering is live; editing behavior comes in later phases."
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <toolkit:GridSplitter
+                    Grid.Column="1"
+                    Width="8"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Stretch"
+                    Background="#40808080"
+                    ResizeDirection="Columns" />
+
+                <Border
+                    Grid.Column="2"
+                    Padding="16"
+                    VerticalAlignment="Stretch"
+                    Background="#FAFAFA"
+                    CornerRadius="8">
+                    <StackPanel Spacing="12">
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Text="Hosted FlowDocument" />
+                        <TextBlock
+                            Text="The sample document is created in MainPage.xaml.cs using WPF-shaped document objects:"
+                            TextWrapping="Wrap" />
+                        <TextBlock FontFamily="Consolas" Text="new FlowDocument()" />
+                        <TextBlock FontFamily="Consolas" Text="new Paragraph()" />
+                        <TextBlock FontFamily="Consolas" Text="new Run { Text = ... }" />
+                        <TextBlock FontFamily="Consolas" Text="new Hyperlink { NavigateUri = ... }" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </TabViewItem>
+
+        <TabViewItem
             Header="RichEditBox"
             IsClosable="False">
             <Grid Padding="24" ColumnSpacing="16">
