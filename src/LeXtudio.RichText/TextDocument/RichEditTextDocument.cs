@@ -2,13 +2,8 @@
 // Microsoft.UI.Text.RichEditTextDocument.
 //
 // Why this exists: Uno's Microsoft.UI.Text.RichEditTextDocument has an internal
-// constructor and 20 of its 36 methods are throw-stubs (verified by decompiling
-// Uno.UI.dll IL). The class is also non-virtual, so derivation can't replace
-// those stubs. We therefore ship our own concrete class that implements
-// Microsoft.UI.Text.ITextDocument so consumers get a working document model.
-//
-// Audit source: tools/UnoTextDocAudit (probe over Uno.WinUI 6.5.153).
-// See docs/DESIGN.md "Document model for RichEditBox" for the verdict table.
+// constructor and many throw-stub members. We ship a concrete implementation
+// that preserves the WinUI-shaped API and behavior needed by our controls.
 
 using System;
 using System.Collections.Generic;
@@ -30,28 +25,31 @@ using FormatEffect = Microsoft.UI.Text.FormatEffect;
 namespace LeXtudio.UI.Text;
 
 public sealed record RichEditCharacterFormatRun(int Start, int End, TextCharacterFormat Format);
+public sealed record RichEditParagraphRange(int Start, int End);
 
-// Note: Uno's Microsoft.UI.Text does not declare an ITextDocument interface
-// (it only ships Microsoft.UI.Text.RichEditTextDocument as a class). Our type
-// mirrors that shape — no formal interface, methods surface directly on the class.
+// Note: Uno's Microsoft.UI.Text does not declare an ITextDocument interface.
 public sealed class RichEditTextDocument
 {
     /// <summary>
-    /// Raised after the document buffer is mutated (via SetText, LoadFromStream, …).
-    /// Internal-only: lets the hosting RichEditBox sync its editor view.
+    /// Raised after document text is mutated.
     /// </summary>
-    internal event System.EventHandler? TextChanged;
+    internal event EventHandler? TextChanged;
 
-    internal event System.EventHandler? FormattingChanged;
+    /// <summary>
+    /// Raised after document formatting is mutated.
+    /// </summary>
+    internal event EventHandler? FormattingChanged;
 
     private readonly StringBuilder _buffer = new();
     private readonly List<CharacterFormatRun> _characterFormatRuns = new();
     private readonly Stack<EditOperation> _undoStack = new();
     private readonly Stack<EditOperation> _redoStack = new();
     private readonly RichEditTextSelection _selection;
+
     private TextCharacterFormat _defaultCharacterFormat = new();
     private TextCharacterFormat? _caretInputFormat;
     private TextParagraphFormat _defaultParagraphFormat = new();
+
     private int _batchCount;
     private bool _isReplayingHistory;
     private int _preserveCaretInputFormatDepth;
@@ -69,16 +67,23 @@ public sealed class RichEditTextDocument
 
     internal StringBuilder Buffer => _buffer;
 
-    internal IDisposable PreserveCaretInputFormatScope()
-        => new CaretInputFormatScope(this);
+    internal IDisposable PreserveCaretInputFormatScope() => new CaretInputFormatScope(this);
 
     public bool CanCopy() => _selection.Length > 0;
     public bool CanPaste() => true;
     public bool CanRedo() => _redoStack.Count > 0;
     public bool CanUndo() => _undoStack.Count > 0;
 
-    public void ApplyDisplayUpdates() { if (_batchCount > 0) _batchCount--; }
+    public void ApplyDisplayUpdates()
+    {
+        if (_batchCount > 0)
+        {
+            _batchCount--;
+        }
+    }
+
     public int BatchDisplayUpdates() => ++_batchCount;
+
     public void BeginUndoGroup() { /* TODO: group operations */ }
     public void EndUndoGroup() { /* TODO: group operations */ }
 
@@ -104,7 +109,9 @@ public sealed class RichEditTextDocument
     public void Redo()
     {
         if (_redoStack.Count == 0)
+        {
             return;
+        }
 
         var operation = _redoStack.Pop();
         ReplaySnapshot(operation.After);
@@ -114,7 +121,9 @@ public sealed class RichEditTextDocument
     public void Undo()
     {
         if (_undoStack.Count == 0)
+        {
             return;
+        }
 
         var operation = _undoStack.Pop();
         ReplaySnapshot(operation.Before);
@@ -129,13 +138,17 @@ public sealed class RichEditTextDocument
     public void SetDefaultCharacterFormat(ITextCharacterFormat value)
     {
         if (value is TextCharacterFormat tcf)
+        {
             _defaultCharacterFormat = (TextCharacterFormat)tcf.GetClone();
+        }
     }
 
     public void SetDefaultParagraphFormat(ITextParagraphFormat value)
     {
         if (value is TextParagraphFormat tpf)
+        {
             _defaultParagraphFormat = (TextParagraphFormat)tpf.GetClone();
+        }
     }
 
     public ITextCharacterFormat GetDefaultCharacterFormat()
@@ -149,17 +162,22 @@ public sealed class RichEditTextDocument
         _buffer.Clear();
         _characterFormatRuns.Clear();
         if (!string.IsNullOrEmpty(value))
+        {
             _buffer.Append(value);
+        }
+
         _selection.SetRange(0, 0);
         ClearUndoRedoHistory();
-        TextChanged?.Invoke(this, System.EventArgs.Empty);
+        TextChanged?.Invoke(this, EventArgs.Empty);
     }
 
     internal void InsertText(int offset, string text, TextCharacterFormat? format = null)
     {
         text ??= string.Empty;
         if (text.Length == 0)
+        {
             return;
+        }
 
         var before = CaptureSnapshot();
         offset = Math.Clamp(offset, 0, _buffer.Length);
@@ -167,14 +185,18 @@ public sealed class RichEditTextDocument
 
         TextCharacterFormat? explicitFormat = format is null ? null : (TextCharacterFormat)format.GetClone();
         if (explicitFormat is null && _caretInputFormat is not null)
+        {
             explicitFormat = (TextCharacterFormat)_caretInputFormat.GetClone();
+        }
 
         bool inheritsFromRun = _characterFormatRuns.Any(run => run.Start < offset && offset <= run.End);
         if (explicitFormat is null && !inheritsFromRun)
         {
             var pristineDefault = new TextCharacterFormat();
             if (!_defaultCharacterFormat.IsEqual(pristineDefault))
+            {
                 explicitFormat = (TextCharacterFormat)_defaultCharacterFormat.GetClone();
+            }
         }
 
         _buffer.Insert(offset, text);
@@ -197,10 +219,12 @@ public sealed class RichEditTextDocument
         }
 
         _characterFormatRuns.Clear();
-        _characterFormatRuns.AddRange(MergeAdjacentRuns(shiftedRuns.OrderBy(run => run.Start)));
+        _characterFormatRuns.AddRange(NormalizeRunsToParagraphBoundaries(shiftedRuns));
 
         if (explicitFormat is not null)
+        {
             ApplyCharacterFormat(offset, offset + delta, explicitFormat);
+        }
 
         RecordEditOperation(new EditOperation(
             offset,
@@ -210,7 +234,7 @@ public sealed class RichEditTextDocument
             before,
             CaptureSnapshot()));
 
-        TextChanged?.Invoke(this, System.EventArgs.Empty);
+        TextChanged?.Invoke(this, EventArgs.Empty);
     }
 
     internal void DeleteRange(int start, int end)
@@ -219,10 +243,13 @@ public sealed class RichEditTextDocument
         start = Math.Clamp(start, 0, _buffer.Length);
         end = Math.Clamp(end, start, _buffer.Length);
         if (end <= start)
+        {
             return;
+        }
 
         string deletedText = _buffer.ToString(start, end - start);
         var deletedRuns = CaptureRunsInRange(start, end);
+
         int deletedLength = end - start;
         _buffer.Remove(start, deletedLength);
 
@@ -245,14 +272,16 @@ public sealed class RichEditTextDocument
             int rightKeep = Math.Max(0, run.End - end);
             int keptLength = leftKeep + rightKeep;
             if (keptLength == 0)
+            {
                 continue;
+            }
 
             int newStart = Math.Min(run.Start, start);
             nextRuns.Add(new CharacterFormatRun(newStart, newStart + keptLength, (TextCharacterFormat)run.Format.GetClone()));
         }
 
         _characterFormatRuns.Clear();
-        _characterFormatRuns.AddRange(MergeAdjacentRuns(nextRuns.OrderBy(run => run.Start)));
+        _characterFormatRuns.AddRange(NormalizeRunsToParagraphBoundaries(nextRuns));
         _selection.SetRange(Math.Min(_selection.StartPosition, _buffer.Length), Math.Min(_selection.EndPosition, _buffer.Length));
 
         RecordEditOperation(new EditOperation(
@@ -263,7 +292,7 @@ public sealed class RichEditTextDocument
             before,
             CaptureSnapshot()));
 
-        TextChanged?.Invoke(this, System.EventArgs.Empty);
+        TextChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void ClearUndoRedoHistory()
@@ -271,13 +300,13 @@ public sealed class RichEditTextDocument
         _undoStack.Clear();
         _redoStack.Clear();
     }
+
     public void SetMathMode(RichEditMathMode mode) => MathMode = mode;
     public RichEditMathMode GetMathMode() => MathMode;
     public string GetMathML() => string.Empty;
     public void SetMathML(string mathML) { /* TODO */ }
 
-    // Members that Uno declares but we don't strictly need for the WinUI API
-    // surface — kept for shape:
+    // Members Uno declares that we preserve for API shape.
     public bool IgnoreTrailingCharacterSpacing { get; set; }
     public bool AlignmentIncludesTrailingWhitespace { get; set; }
 
@@ -285,6 +314,9 @@ public sealed class RichEditTextDocument
         => _characterFormatRuns
             .Select(run => new RichEditCharacterFormatRun(run.Start, run.End, (TextCharacterFormat)run.Format.GetClone()))
             .ToList();
+
+    internal IReadOnlyList<RichEditParagraphRange> GetParagraphRanges()
+        => ComputeParagraphRanges(_buffer.ToString());
 
     internal TextCharacterFormat GetCharacterFormat(int start, int end)
     {
@@ -311,10 +343,12 @@ public sealed class RichEditTextDocument
         {
             var current = GetCharacterFormatIgnoringCaretInput(start);
             if (_caretInputFormat is not null)
+            {
                 current = (TextCharacterFormat)_caretInputFormat.GetClone();
+            }
 
             _caretInputFormat = ResolveToggleValues(current, format);
-            FormattingChanged?.Invoke(this, System.EventArgs.Empty);
+            FormattingChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
 
@@ -332,17 +366,34 @@ public sealed class RichEditTextDocument
             }
 
             if (run.Start < start)
+            {
                 nextRuns.Add(new CharacterFormatRun(run.Start, start, (TextCharacterFormat)run.Format.GetClone()));
+            }
 
             if (run.End > end)
+            {
                 nextRuns.Add(new CharacterFormatRun(end, run.End, (TextCharacterFormat)run.Format.GetClone()));
+            }
         }
 
         nextRuns.Add(new CharacterFormatRun(start, end, nextFormat));
 
         _characterFormatRuns.Clear();
-        _characterFormatRuns.AddRange(MergeAdjacentRuns(nextRuns.OrderBy(run => run.Start)));
-        FormattingChanged?.Invoke(this, System.EventArgs.Empty);
+        _characterFormatRuns.AddRange(NormalizeRunsToParagraphBoundaries(nextRuns));
+        FormattingChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal void NotifySelectionRangeChanged(int oldStart, int oldEnd, int newStart, int newEnd)
+    {
+        if (_preserveCaretInputFormatDepth > 0)
+        {
+            return;
+        }
+
+        if (oldStart != newStart || oldEnd != newEnd)
+        {
+            _caretInputFormat = null;
+        }
     }
 
     private static TextCharacterFormat ResolveToggleValues(TextCharacterFormat current, TextCharacterFormat requested)
@@ -356,7 +407,9 @@ public sealed class RichEditTextDocument
     private static FormatEffect ResolveToggle(FormatEffect current, FormatEffect requested)
     {
         if (requested != FormatEffect.Toggle)
+        {
             return requested;
+        }
 
         return current == FormatEffect.On ? FormatEffect.Off : FormatEffect.On;
     }
@@ -384,8 +437,74 @@ public sealed class RichEditTextDocument
         }
 
         if (previous is not null)
+        {
             yield return previous;
+        }
     }
+
+    private List<CharacterFormatRun> NormalizeRunsToParagraphBoundaries(IEnumerable<CharacterFormatRun> runs)
+    {
+        int length = _buffer.Length;
+        var normalized = new List<CharacterFormatRun>();
+
+        foreach (var run in runs.OrderBy(item => item.Start))
+        {
+            int start = Math.Clamp(run.Start, 0, length);
+            int end = Math.Clamp(run.End, start, length);
+            if (end <= start)
+            {
+                continue;
+            }
+
+            int segmentStart = start;
+            for (int i = start; i < end; i++)
+            {
+                if (!IsParagraphSeparator(_buffer[i]))
+                {
+                    continue;
+                }
+
+                if (segmentStart < i)
+                {
+                    normalized.Add(new CharacterFormatRun(segmentStart, i, (TextCharacterFormat)run.Format.GetClone()));
+                }
+
+                // Skip paragraph separator itself so no run spans across paragraph boundaries.
+                segmentStart = i + 1;
+            }
+
+            if (segmentStart < end)
+            {
+                normalized.Add(new CharacterFormatRun(segmentStart, end, (TextCharacterFormat)run.Format.GetClone()));
+            }
+        }
+
+        return MergeAdjacentRuns(normalized.OrderBy(item => item.Start)).ToList();
+    }
+
+    private static IReadOnlyList<RichEditParagraphRange> ComputeParagraphRanges(string text)
+    {
+        var ranges = new List<RichEditParagraphRange>();
+        int start = 0;
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (!IsParagraphSeparator(text[i]))
+            {
+                continue;
+            }
+
+            ranges.Add(new RichEditParagraphRange(start, i));
+            start = i + 1;
+        }
+
+        // Always expose at least one paragraph, and preserve trailing empty paragraph after final separator.
+        ranges.Add(new RichEditParagraphRange(start, text.Length));
+        return ranges;
+    }
+
+    private static bool IsParagraphSeparator(char c)
+        => c == '\n' || c == '\r';
 
     private DocumentSnapshot CaptureSnapshot()
         => new(
@@ -397,7 +516,9 @@ public sealed class RichEditTextDocument
     private List<RichEditCharacterFormatRun> CaptureRunsInRange(int start, int end)
     {
         if (end <= start)
+        {
             return new List<RichEditCharacterFormatRun>();
+        }
 
         return _characterFormatRuns
             .Where(run => run.End > start && run.Start < end)
@@ -411,7 +532,9 @@ public sealed class RichEditTextDocument
     private void RecordEditOperation(EditOperation operation)
     {
         if (_isReplayingHistory)
+        {
             return;
+        }
 
         _undoStack.Push(operation);
         _redoStack.Clear();
@@ -437,17 +560,8 @@ public sealed class RichEditTextDocument
             _isReplayingHistory = false;
         }
 
-        TextChanged?.Invoke(this, System.EventArgs.Empty);
-        FormattingChanged?.Invoke(this, System.EventArgs.Empty);
-    }
-
-    internal void NotifySelectionRangeChanged(int oldStart, int oldEnd, int newStart, int newEnd)
-    {
-        if (_preserveCaretInputFormatDepth > 0)
-            return;
-
-        if (oldStart != newStart || oldEnd != newEnd)
-            _caretInputFormat = null;
+        TextChanged?.Invoke(this, EventArgs.Empty);
+        FormattingChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private TextCharacterFormat GetCharacterFormatIgnoringCaretInput(int position)
@@ -457,7 +571,9 @@ public sealed class RichEditTextDocument
         var format = (TextCharacterFormat)_defaultCharacterFormat.GetClone();
         var run = _characterFormatRuns.FirstOrDefault(item => item.Start <= position && item.End > position);
         if (run is not null)
+        {
             format.SetClone(run.Format);
+        }
 
         return format;
     }
@@ -476,7 +592,9 @@ public sealed class RichEditTextDocument
         public void Dispose()
         {
             if (_disposed)
+            {
                 return;
+            }
 
             _disposed = true;
             _owner._preserveCaretInputFormatDepth = Math.Max(0, _owner._preserveCaretInputFormatDepth - 1);
@@ -484,7 +602,12 @@ public sealed class RichEditTextDocument
     }
 
     private sealed record CharacterFormatRun(int Start, int End, TextCharacterFormat Format);
-    private sealed record DocumentSnapshot(string Text, List<CharacterFormatRun> Runs, TextCharacterFormat DefaultCharacterFormat, TextCharacterFormat? CaretInputFormat);
+    private sealed record DocumentSnapshot(
+        string Text,
+        List<CharacterFormatRun> Runs,
+        TextCharacterFormat DefaultCharacterFormat,
+        TextCharacterFormat? CaretInputFormat);
+
     private sealed record EditOperation(
         int Start,
         string DeletedText,

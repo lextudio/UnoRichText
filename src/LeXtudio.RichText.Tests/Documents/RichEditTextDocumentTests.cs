@@ -1,5 +1,6 @@
 using Microsoft.UI.Text;
 using NUnit.Framework;
+using System.Collections;
 using System.Linq;
 using System.Reflection;
 using RichEditDocument = LeXtudio.UI.Text.RichEditTextDocument;
@@ -239,6 +240,68 @@ public sealed class RichEditTextDocumentTests
         Assert.That((runs[0].Start, runs[0].End), Is.EqualTo((1, 2)));
     }
 
+    [Test]
+    public void ParagraphRanges_NewlineCreatesSplit()
+    {
+        var document = CreateDocument("ab");
+
+        InsertText(document, 1, "\n");
+
+        AssertText(document, "a\nb");
+        AssertParagraphRanges(document, (0, 1), (2, 3));
+    }
+
+    [Test]
+    public void ApplyFormatAcrossNewline_DoesNotCreateCrossParagraphRun()
+    {
+        var document = CreateDocument("ab\ncd");
+        document.GetRange(0, 5).CharacterFormat.Bold = FormatEffect.On;
+
+        AssertBoldRuns(document, (0, 2), (3, 5));
+        AssertParagraphRanges(document, (0, 2), (3, 5));
+    }
+
+    [Test]
+    public void InsertNewlineInsideRun_SplitsRunAtBoundary()
+    {
+        var document = CreateDocument("abcd");
+        document.GetRange(0, 4).CharacterFormat.Bold = FormatEffect.On;
+
+        InsertText(document, 2, "\n");
+
+        AssertText(document, "ab\ncd");
+        AssertBoldRuns(document, (0, 2), (3, 5));
+        AssertParagraphRanges(document, (0, 2), (3, 5));
+    }
+
+    [Test]
+    public void DeleteNewline_MergesEquivalentAdjacentRuns()
+    {
+        var document = CreateDocument("ab\ncd");
+        document.GetRange(0, 5).CharacterFormat.Bold = FormatEffect.On;
+
+        DeleteRange(document, 2, 3);
+
+        AssertText(document, "abcd");
+        AssertBoldRuns(document, (0, 4));
+        AssertParagraphRanges(document, (0, 4));
+    }
+
+    [Test]
+    public void UndoRedo_NewlineInsert_PreservesParagraphBoundaries()
+    {
+        var document = CreateDocument("abcd");
+
+        InsertText(document, 2, "\n");
+        AssertParagraphRanges(document, (0, 2), (3, 5));
+
+        document.Undo();
+        AssertParagraphRanges(document, (0, 4));
+
+        document.Redo();
+        AssertParagraphRanges(document, (0, 2), (3, 5));
+    }
+
     private static RichEditDocument CreateDocument(string text)
     {
         var document = new RichEditDocument();
@@ -282,5 +345,27 @@ public sealed class RichEditTextDocumentTests
         var result = method!.Invoke(document, new object?[] { start, end });
         Assert.That(result, Is.Not.Null, "GetCharacterFormat returned null.");
         return (LeXtudio.UI.Text.TextCharacterFormat)result!;
+    }
+
+    private static void AssertParagraphRanges(RichEditDocument document, params (int start, int end)[] expected)
+    {
+        var method = typeof(RichEditDocument).GetMethod("GetParagraphRanges", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(method, Is.Not.Null, "GetParagraphRanges internal method was not found.");
+
+        var result = method!.Invoke(document, null);
+        Assert.That(result, Is.Not.Null, "GetParagraphRanges returned null.");
+
+        var actual = ((IEnumerable)result!)
+            .Cast<object>()
+            .Select(item =>
+            {
+                var type = item.GetType();
+                var start = (int)(type.GetProperty("Start")!.GetValue(item) ?? -1);
+                var end = (int)(type.GetProperty("End")!.GetValue(item) ?? -1);
+                return (start, end);
+            })
+            .ToArray();
+
+        Assert.That(actual, Is.EqualTo(expected));
     }
 }
