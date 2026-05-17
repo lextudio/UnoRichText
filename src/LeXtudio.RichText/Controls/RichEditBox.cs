@@ -7,6 +7,8 @@
 // docs/COMPAT-PLAN.md for the source-reuse map.
 
 using System;
+using System.IO;
+using System.Linq;
 using Microsoft.UI.Text;
 using LeXtudioTextDoc = LeXtudio.UI.Text.RichEditTextDocument;
 using Microsoft.UI.Xaml;
@@ -17,6 +19,8 @@ using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 using Windows.UI;
 using Windows.UI.Text;
+using LeXtudio.UI.Controls;
+using FlowDocuments = System.Windows.Documents;
 
 namespace LeXtudio.UI.Xaml.Controls;
 
@@ -170,7 +174,11 @@ public partial class RichEditBox : ContentControl
     // Internal editing host — LeXtudio.UI.Controls.TextBox provides a real caret, selection,
     // keyboard, and a CoreTextEditContext-backed IME bridge that works on all Uno platforms.
     private readonly LeXtudio.UI.Controls.TextBox _editorHost;
+    private readonly RichTextBlock _renderOverlay;
     private bool _syncingFromDocument;
+    private static readonly string s_diagnosticLogPath = Path.Combine(Path.GetTempPath(), "LeXtudio.RichText.RichEditBox.log");
+
+    public static bool DiagnosticsEnabled { get; set; }
 
     public RichEditBox()
     {
@@ -184,14 +192,33 @@ public partial class RichEditBox : ContentControl
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
 
+        _renderOverlay = new RichTextBlock
+        {
+            IsHitTestVisible = false,
+            Padding = new Thickness(8, 6, 8, 6),
+            TextWrapping = TextWrapping.Wrap,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Visibility = Visibility.Collapsed,
+        };
+
         // editor → Document
         _editorHost.TextChanged += OnEditorHostTextChanged;
         _editorHost.SelectionChanged += OnEditorHostSelectionChanged;
+        _editorHost.FormattingAcceleratorRequested += OnEditorHostFormattingAcceleratorRequested;
 
         // Document → editor (when consumer calls Document.SetText programmatically)
         Document.TextChanged += OnDocumentTextChanged;
+        Document.FormattingChanged += OnDocumentFormattingChanged;
 
-        Content = _editorHost;
+        Content = new Grid
+        {
+            Children =
+            {
+                _editorHost,
+                _renderOverlay,
+            }
+        };
 
         // RichEditBox itself should fill whatever its parent gives it.
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
@@ -227,25 +254,61 @@ public partial class RichEditBox : ContentControl
         _editorHost.ReplaceSelection(transform(_editorHost.SelectedText ?? string.Empty));
     }
 
+    private void OnEditorHostFormattingAcceleratorRequested(object? sender, TextFormattingAcceleratorRequestedEventArgs e)
+    {
+        LogDiagnostic($"FormattingAccelerator requested={e.Accelerator} selection={_editorHost.SelectionStart}+{_editorHost.SelectionLength} text={DescribeText(_editorHost.Text)}");
+        switch (e.Accelerator)
+        {
+            case TextFormattingAccelerator.Bold:
+                Document.Selection.CharacterFormat.Bold = Microsoft.UI.Text.FormatEffect.Toggle;
+                e.Handled = true;
+                break;
+            case TextFormattingAccelerator.Italic:
+                Document.Selection.CharacterFormat.Italic = Microsoft.UI.Text.FormatEffect.Toggle;
+                e.Handled = true;
+                break;
+            case TextFormattingAccelerator.Underline:
+                Document.Selection.CharacterFormat.Underline = Microsoft.UI.Text.UnderlineType.Single;
+                e.Handled = true;
+                break;
+        }
+        LogDiagnostic($"FormattingAccelerator handled={e.Handled} runs={DescribeRuns()}");
+    }
+
     private void OnDocumentTextChanged(object? sender, System.EventArgs e)
     {
+        LogDiagnostic($"DocumentTextChanged syncing={_syncingFromDocument} runs={DescribeRuns()}");
         if (_syncingFromDocument) return;
         _syncingFromDocument = true;
         try
         {
             Document.GetText(Microsoft.UI.Text.TextGetOptions.None, out var s);
             if (_editorHost.Text != s) _editorHost.Text = s ?? string.Empty;
+            RefreshRichRenderOverlay();
         }
         finally { _syncingFromDocument = false; }
     }
 
+    private void OnDocumentFormattingChanged(object? sender, System.EventArgs e)
+    {
+        LogDiagnostic($"DocumentFormattingChanged runs={DescribeRuns()}");
+        RefreshRichRenderOverlay();
+    }
+
     private void OnEditorHostTextChanged(object sender, TextChangedEventArgs e)
     {
+        LogDiagnostic($"EditorHostTextChanged syncing={_syncingFromDocument} hostText={DescribeText(_editorHost.Text)} runsBefore={DescribeRuns()}");
         if (_syncingFromDocument) return;
         _syncingFromDocument = true;
         try
         {
-            Document.SetText(Microsoft.UI.Text.TextSetOptions.None, _editorHost.Text);
+            Document.GetText(Microsoft.UI.Text.TextGetOptions.None, out var documentText);
+            if ((documentText ?? string.Empty) != (_editorHost.Text ?? string.Empty))
+            {
+                Document.SetText(Microsoft.UI.Text.TextSetOptions.None, _editorHost.Text);
+            }
+            RefreshRichRenderOverlay();
+            LogDiagnostic($"EditorHostTextChanged after SetText runsAfter={DescribeRuns()} overlay={_renderOverlay.Visibility} opacity={_editorHost.Opacity}");
             RaiseTextChanged(new RoutedEventArgs());
         }
         finally { _syncingFromDocument = false; }
@@ -255,6 +318,7 @@ public partial class RichEditBox : ContentControl
     {
         int start = _editorHost.SelectionStart;
         int length = _editorHost.SelectionLength;
+        LogDiagnostic($"EditorHostSelectionChanged selection={start}+{length} runs={DescribeRuns()}");
         Document.Selection.SetRange(start, start + length);
         RaiseSelectionChanged(e);
     }
@@ -288,6 +352,114 @@ public partial class RichEditBox : ContentControl
     internal void RaiseTextCompositionChanged(RichEditBoxTextCompositionChangedEventArgs e) => TextCompositionChanged?.Invoke(this, e);
     internal void RaiseTextCompositionEnded(RichEditBoxTextCompositionEndedEventArgs e) => TextCompositionEnded?.Invoke(this, e);
     internal void RaiseCandidateWindowBoundsChanged(CandidateWindowBoundsChangedEventArgs e) => CandidateWindowBoundsChanged?.Invoke(this, e);
+
+    private void RefreshRichRenderOverlay()
+    {
+        Document.GetText(Microsoft.UI.Text.TextGetOptions.None, out var text);
+        text ??= string.Empty;
+
+        var runs = Document.GetCharacterFormatRuns()
+            .Where(run => run.Start < run.End && run.Start < text.Length && IsVisibleFormat(run.Format))
+            .OrderBy(run => run.Start)
+            .ToList();
+
+        LogDiagnostic($"RefreshOverlay text={DescribeText(text)} visibleRuns={runs.Count} allRuns={DescribeRuns()} hostOpacity={_editorHost.Opacity}");
+        _renderOverlay.Blocks.Clear();
+
+        if (string.IsNullOrEmpty(text) || runs.Count == 0)
+        {
+            _renderOverlay.Visibility = Visibility.Collapsed;
+            _editorHost.Opacity = 1;
+            LogDiagnostic("RefreshOverlay collapsed");
+            return;
+        }
+
+        var paragraph = new FlowDocuments.Paragraph();
+        int position = 0;
+
+        foreach (var run in runs)
+        {
+            int start = Math.Clamp(run.Start, 0, text.Length);
+            int end = Math.Clamp(run.End, start, text.Length);
+            if (start > position)
+                paragraph.Inlines.Add(new FlowDocuments.Run(text[position..start]));
+
+            paragraph.Inlines.Add(CreateFormattedInline(text[start..end], run.Format));
+            position = end;
+        }
+
+        if (position < text.Length)
+            paragraph.Inlines.Add(new FlowDocuments.Run(text[position..]));
+
+        _renderOverlay.Blocks.Add(paragraph);
+        _renderOverlay.Visibility = Visibility.Visible;
+
+        // The overlay paints formatted text while the real text host keeps caret,
+        // selection, IME, and keyboard behavior alive underneath. Keep the host
+        // faintly visible so caret/selection remain usable while rich runs lead.
+        _editorHost.Opacity = 0.35;
+        LogDiagnostic($"RefreshOverlay visible blocks={_renderOverlay.Blocks.Count} hostOpacity={_editorHost.Opacity}");
+    }
+
+    private static bool IsVisibleFormat(LeXtudio.UI.Text.TextCharacterFormat format)
+        => format.Bold == Microsoft.UI.Text.FormatEffect.On
+            || format.Italic == Microsoft.UI.Text.FormatEffect.On
+            || format.Underline != Microsoft.UI.Text.UnderlineType.None
+            || format.ForegroundColor != Color.FromArgb(255, 0, 0, 0);
+
+    private static FlowDocuments.Inline CreateFormattedInline(string text, LeXtudio.UI.Text.TextCharacterFormat format)
+    {
+        FlowDocuments.Inline inline = new FlowDocuments.Run(text);
+
+        if (format.Underline != Microsoft.UI.Text.UnderlineType.None)
+            inline = new FlowDocuments.Underline(inline);
+
+        if (format.Italic == Microsoft.UI.Text.FormatEffect.On)
+            inline = new FlowDocuments.Italic(inline);
+
+        if (format.Bold == Microsoft.UI.Text.FormatEffect.On)
+            inline = new FlowDocuments.Bold(inline);
+
+        if (inline is FlowDocuments.Span span && format.ForegroundColor != Color.FromArgb(255, 0, 0, 0))
+            span.Foreground = new SolidColorBrush(format.ForegroundColor);
+        else if (inline is FlowDocuments.Run run && format.ForegroundColor != Color.FromArgb(255, 0, 0, 0))
+            run.Foreground = new SolidColorBrush(format.ForegroundColor);
+
+        return inline;
+    }
+
+    private static void LogDiagnostic(string message)
+    {
+        if (!DiagnosticsEnabled)
+            return;
+
+        try
+        {
+            File.AppendAllText(s_diagnosticLogPath, $"{DateTimeOffset.Now:O} {message}{Environment.NewLine}");
+        }
+        catch
+        {
+            // Diagnostics must not affect editing behavior.
+        }
+    }
+
+    private string DescribeRuns()
+        => string.Join("; ", Document.GetCharacterFormatRuns().Select(run =>
+            $"{run.Start}..{run.End} B={run.Format.Bold} I={run.Format.Italic} U={run.Format.Underline} FG={run.Format.ForegroundColor}"));
+
+    private static string DescribeText(string? text)
+    {
+        if (text is null)
+            return "<null>";
+
+        return "\"" + text
+            .Replace("\\", "\\\\")
+            .Replace("\r", "\\r")
+            .Replace("\n", "\\n")
+            .Replace("\t", "\\t")
+            .Replace("\u0002", "\\u0002")
+            .Replace("\"", "\\\"") + "\"";
+    }
 }
 
 // ---- Support types (event args + enums + small structs) -----------------------

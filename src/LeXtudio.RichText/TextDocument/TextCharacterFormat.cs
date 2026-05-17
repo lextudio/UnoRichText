@@ -18,30 +18,57 @@ namespace LeXtudio.UI.Text;
 
 public sealed class TextCharacterFormat : ITextCharacterFormat
 {
-    public FormatEffect AllCaps { get; set; } = FormatEffect.Off;
-    public Color BackgroundColor { get; set; } = Color.FromArgb(0, 0, 0, 0);
-    public FormatEffect Bold { get; set; } = FormatEffect.Off;
-    public FontStretch FontStretch { get; set; } = FontStretch.Normal;
-    public FontStyle FontStyle { get; set; } = FontStyle.Normal;
-    public Color ForegroundColor { get; set; } = Color.FromArgb(255, 0, 0, 0);
-    public FormatEffect Hidden { get; set; } = FormatEffect.Off;
-    public FormatEffect Italic { get; set; } = FormatEffect.Off;
-    public float Kerning { get; set; } = 0f;
-    public string LanguageTag { get; set; } = string.Empty;
-    public LinkType LinkType { get; internal set; } = LinkType.NotALink;
-    public string Name { get; set; } = "Segoe UI";
-    public FormatEffect Outline { get; set; } = FormatEffect.Off;
-    public float Position { get; set; } = 0f;
-    public FormatEffect ProtectedText { get; set; } = FormatEffect.Off;
-    public float Size { get; set; } = 14f;
-    public FormatEffect SmallCaps { get; set; } = FormatEffect.Off;
-    public float Spacing { get; set; } = 0f;
-    public FormatEffect Strikethrough { get; set; } = FormatEffect.Off;
-    public FormatEffect Subscript { get; set; } = FormatEffect.Off;
-    public FormatEffect Superscript { get; set; } = FormatEffect.Off;
-    public TextScript TextScript { get; set; } = TextScript.Default;
-    public UnderlineType Underline { get; set; } = UnderlineType.None;
-    public int Weight { get; set; } = 400;
+    private FormatEffect _allCaps = FormatEffect.Off;
+    private Color _backgroundColor = Color.FromArgb(0, 0, 0, 0);
+    private FormatEffect _bold = FormatEffect.Off;
+    private FontStretch _fontStretch = FontStretch.Normal;
+    private FontStyle _fontStyle = FontStyle.Normal;
+    private Color _foregroundColor = Color.FromArgb(255, 0, 0, 0);
+    private FormatEffect _hidden = FormatEffect.Off;
+    private FormatEffect _italic = FormatEffect.Off;
+    private float _kerning;
+    private string _languageTag = string.Empty;
+    private LinkType _linkType = LinkType.NotALink;
+    private string _name = "Segoe UI";
+    private FormatEffect _outline = FormatEffect.Off;
+    private float _position;
+    private FormatEffect _protectedText = FormatEffect.Off;
+    private float _size = 14f;
+    private FormatEffect _smallCaps = FormatEffect.Off;
+    private float _spacing;
+    private FormatEffect _strikethrough = FormatEffect.Off;
+    private FormatEffect _subscript = FormatEffect.Off;
+    private FormatEffect _superscript = FormatEffect.Off;
+    private TextScript _textScript = TextScript.Default;
+    private UnderlineType _underline = UnderlineType.None;
+    private int _weight = 400;
+
+    internal event System.EventHandler? Changed;
+
+    public FormatEffect AllCaps { get => _allCaps; set => Set(ref _allCaps, value); }
+    public Color BackgroundColor { get => _backgroundColor; set => Set(ref _backgroundColor, value); }
+    public FormatEffect Bold { get => _bold; set => Set(ref _bold, value); }
+    public FontStretch FontStretch { get => _fontStretch; set => Set(ref _fontStretch, value); }
+    public FontStyle FontStyle { get => _fontStyle; set => Set(ref _fontStyle, value); }
+    public Color ForegroundColor { get => _foregroundColor; set => Set(ref _foregroundColor, value); }
+    public FormatEffect Hidden { get => _hidden; set => Set(ref _hidden, value); }
+    public FormatEffect Italic { get => _italic; set => Set(ref _italic, value); }
+    public float Kerning { get => _kerning; set => Set(ref _kerning, value); }
+    public string LanguageTag { get => _languageTag; set => Set(ref _languageTag, value ?? string.Empty); }
+    public LinkType LinkType { get => _linkType; internal set => Set(ref _linkType, value); }
+    public string Name { get => _name; set => Set(ref _name, value ?? string.Empty); }
+    public FormatEffect Outline { get => _outline; set => Set(ref _outline, value); }
+    public float Position { get => _position; set => Set(ref _position, value); }
+    public FormatEffect ProtectedText { get => _protectedText; set => Set(ref _protectedText, value); }
+    public float Size { get => _size; set => Set(ref _size, value); }
+    public FormatEffect SmallCaps { get => _smallCaps; set => Set(ref _smallCaps, value); }
+    public float Spacing { get => _spacing; set => Set(ref _spacing, value); }
+    public FormatEffect Strikethrough { get => _strikethrough; set => Set(ref _strikethrough, value); }
+    public FormatEffect Subscript { get => _subscript; set => Set(ref _subscript, value); }
+    public FormatEffect Superscript { get => _superscript; set => Set(ref _superscript, value); }
+    public TextScript TextScript { get => _textScript; set => Set(ref _textScript, value); }
+    public UnderlineType Underline { get => _underline; set => Set(ref _underline, value); }
+    public int Weight { get => _weight; set => Set(ref _weight, value); }
 
     public ITextCharacterFormat GetClone() => new TextCharacterFormat
     {
@@ -95,5 +122,14 @@ public sealed class TextCharacterFormat : ITextCharacterFormat
         ProtectedText = o.ProtectedText; Size = o.Size; SmallCaps = o.SmallCaps; Spacing = o.Spacing;
         Strikethrough = o.Strikethrough; Subscript = o.Subscript; Superscript = o.Superscript;
         TextScript = o.TextScript; Underline = o.Underline; Weight = o.Weight;
+    }
+
+    private void Set<T>(ref T field, T value)
+    {
+        if (System.Collections.Generic.EqualityComparer<T>.Default.Equals(field, value))
+            return;
+
+        field = value;
+        Changed?.Invoke(this, System.EventArgs.Empty);
     }
 }

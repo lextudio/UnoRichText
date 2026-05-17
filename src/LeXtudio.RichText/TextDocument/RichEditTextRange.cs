@@ -35,15 +35,23 @@ internal class RichEditTextRange : ITextRange
     {
         _document = document;
         SetRangeCore(start, end);
+        AttachCharacterFormat(_document.GetCharacterFormat(_start, _end));
     }
 
     public virtual ITextCharacterFormat CharacterFormat
     {
-        get => _characterFormat;
+        get
+        {
+            AttachCharacterFormat(_document.GetCharacterFormat(_start, _end));
+            return _characterFormat;
+        }
         set
         {
             if (value is TextCharacterFormat tcf)
-                _characterFormat = (TextCharacterFormat)tcf.GetClone();
+            {
+                AttachCharacterFormat((TextCharacterFormat)tcf.GetClone());
+                _document.ApplyCharacterFormat(_start, _end, _characterFormat);
+            }
         }
     }
 
@@ -149,7 +157,7 @@ internal class RichEditTextRange : ITextRange
     public ITextRange GetClone()
     {
         var c = new RichEditTextRange(_document, _start, _end);
-        c._characterFormat = (TextCharacterFormat)_characterFormat.GetClone();
+        c.AttachCharacterFormat((TextCharacterFormat)_characterFormat.GetClone());
         c._paragraphFormat = (TextParagraphFormat)_paragraphFormat.GetClone();
         return c;
     }
@@ -203,5 +211,19 @@ internal class RichEditTextRange : ITextRange
         if (end < start) end = start;
         _start = start;
         _end = end;
+    }
+
+    private void AttachCharacterFormat(TextCharacterFormat format)
+    {
+        if (_characterFormat is not null)
+            _characterFormat.Changed -= OnCharacterFormatChanged;
+
+        _characterFormat = format;
+        _characterFormat.Changed += OnCharacterFormatChanged;
+    }
+
+    private void OnCharacterFormatChanged(object? sender, EventArgs e)
+    {
+        _document.ApplyCharacterFormat(_start, _end, _characterFormat);
     }
 }

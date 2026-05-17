@@ -34,6 +34,7 @@
     <Compile Include="Documents\BlockTests.cs" />
     <Compile Include="Documents\FlowDocumentTests.cs" />
     <Compile Include="Documents\InlineTests.cs" />
+    <Compile Include="Documents\RichEditTextDocumentTests.cs" />
     <Compile Include="Controls\InlineCodeRenderingTests.cs" />
     <Compile Include="Controls\SelectionGeometryTests.cs" />
   </ItemGroup>

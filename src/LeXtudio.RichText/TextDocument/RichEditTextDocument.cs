@@ -11,6 +11,8 @@
 // See docs/DESIGN.md "Document model for RichEditBox" for the verdict table.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using global::Windows.Storage.Streams;
 using ITextRange = Microsoft.UI.Text.ITextRange;
@@ -22,8 +24,11 @@ using RichEditMathMode = Microsoft.UI.Text.RichEditMathMode;
 using TextGetOptions = Microsoft.UI.Text.TextGetOptions;
 using TextSetOptions = Microsoft.UI.Text.TextSetOptions;
 using PointOptions = Microsoft.UI.Text.PointOptions;
+using FormatEffect = Microsoft.UI.Text.FormatEffect;
 
 namespace LeXtudio.UI.Text;
+
+public sealed record RichEditCharacterFormatRun(int Start, int End, TextCharacterFormat Format);
 
 // Note: Uno's Microsoft.UI.Text does not declare an ITextDocument interface
 // (it only ships Microsoft.UI.Text.RichEditTextDocument as a class). Our type
@@ -36,7 +41,10 @@ public sealed class RichEditTextDocument
     /// </summary>
     internal event System.EventHandler? TextChanged;
 
+    internal event System.EventHandler? FormattingChanged;
+
     private readonly StringBuilder _buffer = new();
+    private readonly List<CharacterFormatRun> _characterFormatRuns = new();
     private readonly RichEditTextSelection _selection;
     private TextCharacterFormat _defaultCharacterFormat = new();
     private TextParagraphFormat _defaultParagraphFormat = new();
@@ -111,6 +119,7 @@ public sealed class RichEditTextDocument
     public void SetText(TextSetOptions options, string value)
     {
         _buffer.Clear();
+        _characterFormatRuns.Clear();
         if (!string.IsNullOrEmpty(value))
             _buffer.Append(value);
         _selection.SetRange(0, 0);
@@ -127,4 +136,104 @@ public sealed class RichEditTextDocument
     // surface — kept for shape:
     public bool IgnoreTrailingCharacterSpacing { get; set; }
     public bool AlignmentIncludesTrailingWhitespace { get; set; }
+
+    public IReadOnlyList<RichEditCharacterFormatRun> GetCharacterFormatRuns()
+        => _characterFormatRuns
+            .Select(run => new RichEditCharacterFormatRun(run.Start, run.End, (TextCharacterFormat)run.Format.GetClone()))
+            .ToList();
+
+    internal TextCharacterFormat GetCharacterFormat(int start, int end)
+    {
+        start = Math.Clamp(start, 0, _buffer.Length);
+        end = Math.Clamp(end, start, _buffer.Length);
+
+        var format = (TextCharacterFormat)_defaultCharacterFormat.GetClone();
+        var run = _characterFormatRuns.FirstOrDefault(item => item.Start <= start && item.End > start);
+        if (run is not null)
+            format.SetClone(run.Format);
+
+        return format;
+    }
+
+    internal void ApplyCharacterFormat(int start, int end, TextCharacterFormat format)
+    {
+        start = Math.Clamp(start, 0, _buffer.Length);
+        end = Math.Clamp(end, start, _buffer.Length);
+
+        if (start == end)
+        {
+            var nextDefault = ResolveToggleValues(_defaultCharacterFormat, format);
+            _defaultCharacterFormat = nextDefault;
+            FormattingChanged?.Invoke(this, System.EventArgs.Empty);
+            return;
+        }
+
+        var nextFormat = ResolveToggleValues(GetCharacterFormat(start, end), format);
+        var nextRuns = new List<CharacterFormatRun>();
+
+        foreach (var run in _characterFormatRuns)
+        {
+            if (run.End <= start || run.Start >= end)
+            {
+                nextRuns.Add(run);
+                continue;
+            }
+
+            if (run.Start < start)
+                nextRuns.Add(new CharacterFormatRun(run.Start, start, (TextCharacterFormat)run.Format.GetClone()));
+
+            if (run.End > end)
+                nextRuns.Add(new CharacterFormatRun(end, run.End, (TextCharacterFormat)run.Format.GetClone()));
+        }
+
+        nextRuns.Add(new CharacterFormatRun(start, end, nextFormat));
+
+        _characterFormatRuns.Clear();
+        _characterFormatRuns.AddRange(MergeAdjacentRuns(nextRuns.OrderBy(run => run.Start)));
+        FormattingChanged?.Invoke(this, System.EventArgs.Empty);
+    }
+
+    private static TextCharacterFormat ResolveToggleValues(TextCharacterFormat current, TextCharacterFormat requested)
+    {
+        var resolved = (TextCharacterFormat)requested.GetClone();
+        resolved.Bold = ResolveToggle(current.Bold, requested.Bold);
+        resolved.Italic = ResolveToggle(current.Italic, requested.Italic);
+        return resolved;
+    }
+
+    private static FormatEffect ResolveToggle(FormatEffect current, FormatEffect requested)
+    {
+        if (requested != FormatEffect.Toggle)
+            return requested;
+
+        return current == FormatEffect.On ? FormatEffect.Off : FormatEffect.On;
+    }
+
+    private static IEnumerable<CharacterFormatRun> MergeAdjacentRuns(IEnumerable<CharacterFormatRun> runs)
+    {
+        CharacterFormatRun? previous = null;
+
+        foreach (var run in runs)
+        {
+            if (previous is null)
+            {
+                previous = run;
+                continue;
+            }
+
+            if (previous.End == run.Start && previous.Format.IsEqual(run.Format))
+            {
+                previous = new CharacterFormatRun(previous.Start, run.End, previous.Format);
+                continue;
+            }
+
+            yield return previous;
+            previous = run;
+        }
+
+        if (previous is not null)
+            yield return previous;
+    }
+
+    private sealed record CharacterFormatRun(int Start, int End, TextCharacterFormat Format);
 }
