@@ -7,18 +7,19 @@
 
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Documents;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
 using Windows.Foundation;
 
 namespace LeXtudio.UI.Xaml.Controls;
 
-public partial class RichTextBlockOverflow : FrameworkElement
+public partial class RichTextBlockOverflow : Panel
 {
     public static DependencyProperty ContentSourceProperty { get; } =
         DependencyProperty.Register(nameof(ContentSource), typeof(DependencyObject), typeof(RichTextBlockOverflow), new PropertyMetadata(null, OnContentSourceChanged));
 
     public static DependencyProperty OverflowContentTargetProperty { get; } =
-        DependencyProperty.Register(nameof(OverflowContentTarget), typeof(RichTextBlockOverflow), typeof(RichTextBlockOverflow), new PropertyMetadata(null));
+        DependencyProperty.Register(nameof(OverflowContentTarget), typeof(RichTextBlockOverflow), typeof(RichTextBlockOverflow), new PropertyMetadata(null, OnOverflowContentTargetChanged));
 
     public static DependencyProperty HasOverflowContentProperty { get; } =
         DependencyProperty.Register(nameof(HasOverflowContent), typeof(bool), typeof(RichTextBlockOverflow), new PropertyMetadata(false));
@@ -79,8 +80,14 @@ public partial class RichTextBlockOverflow : FrameworkElement
     /// </summary>
     public event RoutedEventHandler? SelectionChanged;
 
+    private readonly Canvas _canvas = new();
+    private RichTextBlock? _source;
+
+    internal double LastViewportHeight { get; private set; }
+
     public RichTextBlockOverflow()
     {
+        Children.Add(_canvas);
     }
 
     /// <summary>
@@ -92,7 +99,57 @@ public partial class RichTextBlockOverflow : FrameworkElement
 
     private static void OnContentSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        // TODO: detach from previous source, attach to new source, request re-layout.
+        var overflow = (RichTextBlockOverflow)d;
+        overflow._source = e.NewValue as RichTextBlock;
+        if (overflow.OverflowContentTarget is not null)
+            overflow.OverflowContentTarget.ContentSource = overflow._source;
+        overflow.InvalidateMeasure();
+        overflow.InvalidateArrange();
+    }
+
+    private static void OnOverflowContentTargetChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var overflow = (RichTextBlockOverflow)d;
+        if (e.NewValue is RichTextBlockOverflow target)
+            target.ContentSource = overflow._source;
+
+        overflow.InvalidateArrange();
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        var width = double.IsPositiveInfinity(availableSize.Width) ? 0 : availableSize.Width;
+        var height = double.IsPositiveInfinity(availableSize.Height) ? 0 : availableSize.Height;
+        _canvas.Measure(new Size(width, height));
+        return new Size(width, height);
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        LastViewportHeight = finalSize.Height;
+        _canvas.Children.Clear();
+        Clip = new RectangleGeometry { Rect = new Rect(0, 0, finalSize.Width, finalSize.Height) };
+
+        if (_source is not null && finalSize.Width > 0 && finalSize.Height > 0)
+        {
+            _source.ArrangeOverflowContent(this, _canvas, finalSize);
+        }
+
+        _canvas.Width = finalSize.Width;
+        _canvas.Height = finalSize.Height;
+        _canvas.Arrange(new Rect(0, 0, finalSize.Width, finalSize.Height));
+        OverflowContentTarget?.InvalidateMeasure();
+        OverflowContentTarget?.InvalidateArrange();
+        return finalSize;
+    }
+
+    internal void SetOverflowState(bool hasOverflowContent, bool isTextTrimmed)
+    {
+        SetValue(HasOverflowContentProperty, hasOverflowContent);
+        if (IsTextTrimmed != isTextTrimmed)
+        {
+            SetValue(IsTextTrimmedProperty, isTextTrimmed);
+        }
     }
 
     internal void RaiseIsTextTrimmedChanged(IsTextTrimmedChangedEventArgs e)

@@ -58,7 +58,7 @@ public class RichTextBlock : Panel
     public static DependencyProperty OpticalMarginAlignmentProperty { get; } =
         DependencyProperty.Register(nameof(OpticalMarginAlignment), typeof(OpticalMarginAlignment), typeof(RichTextBlock), new PropertyMetadata(OpticalMarginAlignment.None, OnLayoutPropertyChanged));
     public static DependencyProperty OverflowContentTargetProperty { get; } =
-        DependencyProperty.Register(nameof(OverflowContentTarget), typeof(RichTextBlockOverflow), typeof(RichTextBlock), new PropertyMetadata(null));
+        DependencyProperty.Register(nameof(OverflowContentTarget), typeof(RichTextBlockOverflow), typeof(RichTextBlock), new PropertyMetadata(null, OnOverflowContentTargetChanged));
     public static DependencyProperty PaddingProperty { get; } =
         DependencyProperty.Register(nameof(Padding), typeof(Thickness), typeof(RichTextBlock), new PropertyMetadata(default(Thickness), OnLayoutPropertyChanged));
     public static DependencyProperty SelectedTextProperty { get; } =
@@ -504,22 +504,56 @@ public class RichTextBlock : Panel
     protected override Size ArrangeOverride(Size finalSize)
     {
         DiagLog($"ArrangeOverride enter finalSize={finalSize.Width:F1}x{finalSize.Height:F1} segs={_preparedSegments.Length} foreground={Foreground}");
-        _canvas.Children.Clear();
-        _placedFragments.Clear();
+        _totalHeight = RenderContent(_canvas, finalSize, verticalOffset: 0, recordHitTest: true);
+        _focusSink.Arrange(new Rect(0, 0, 0, 0));
+        _canvas.Width = finalSize.Width;
+        _canvas.Height = Math.Max(finalSize.Height, _totalHeight);
+        _canvas.Arrange(new Rect(0, 0, finalSize.Width, Math.Max(finalSize.Height, _totalHeight)));
+        SetValue(HasOverflowContentProperty, _totalHeight > finalSize.Height);
+        OverflowContentTarget?.InvalidateMeasure();
+        OverflowContentTarget?.InvalidateArrange();
+        var firstTb = _canvas.Children.OfType<Microsoft.UI.Xaml.Controls.TextBlock>().FirstOrDefault();
+        DiagLog($"ArrangeOverride exit canvasChildren={_canvas.Children.Count} firstTbForeground={firstTb?.Foreground} firstTbText=\"{firstTb?.Text}\"");
+        return finalSize;
+    }
+
+    internal double ArrangeOverflowContent(RichTextBlockOverflow overflow, Canvas canvas, Size finalSize)
+    {
+        if (_preparedSegments.Length == 0 || _flatItems is null)
+            Measure(new Size(finalSize.Width, double.PositiveInfinity));
+
+        var offset = finalSize.Height;
+        var current = OverflowContentTarget;
+        while (current is not null && !ReferenceEquals(current, overflow))
+        {
+            offset += current.LastViewportHeight;
+            current = current.OverflowContentTarget;
+        }
+
+        var totalHeight = RenderContent(canvas, finalSize, offset, recordHitTest: false);
+        overflow.SetOverflowState(totalHeight > offset + finalSize.Height, false);
+        return totalHeight;
+    }
+
+    private double RenderContent(Canvas target, Size finalSize, double verticalOffset, bool recordHitTest)
+    {
+        target.Children.Clear();
+        if (recordHitTest)
+            _placedFragments.Clear();
 
         if (_preparedSegments.Length == 0 || _flatItems == null)
         {
-            _canvas.Arrange(new Rect(0, 0, 0, 0));
-            return finalSize;
+            target.Measure(new Size(0, 0));
+            return 0;
         }
 
         double maxWidth = finalSize.Width > 0 ? finalSize.Width : 9999;
+        double viewportHeight = finalSize.Height > 0 ? finalSize.Height : double.PositiveInfinity;
         double currentY = 0;
         var selMin = Math.Min(_selectionAnchor, _selectionFocus);
         var selMax = Math.Max(_selectionAnchor, _selectionFocus);
         var hasSelection = IsTextSelectionEnabled && _selectionAnchor >= 0 && _selectionFocus >= 0
                            && _selectionAnchor != _selectionFocus;
-
         var consumedPerItem = new Dictionary<int, int>();
 
         foreach (var seg in _preparedSegments)
@@ -528,16 +562,12 @@ public class RichTextBlock : Panel
             {
                 var line = PretextLayout.MaterializeRichInlineLineRange(seg.Prepared, range);
                 double x = 0;
-                double y = currentY;
                 double lineHeight = ResolvedLineHeight;
-
                 var lineFragments = new List<PendingPlacedFragment>();
 
                 foreach (var fragment in line.Fragments)
                 {
                     x += fragment.GapBefore;
-
-                    // fragment.ItemIndex is relative to the segment; offset to global flat item index.
                     var flatIndex = seg.FlatItemOffset + fragment.ItemIndex;
                     var flatItem = _flatItems[flatIndex];
                     int fragCharStart, fragCharEnd;
@@ -545,16 +575,14 @@ public class RichTextBlock : Panel
 
                     if (flatItem is UiContainerItem)
                     {
-                        var itemBase = flatIndex < _flatItemCharOffsets.Length
-                            ? _flatItemCharOffsets[flatIndex] : 0;
+                        var itemBase = flatIndex < _flatItemCharOffsets.Length ? _flatItemCharOffsets[flatIndex] : 0;
                         fragCharStart = itemBase;
                         fragCharEnd = itemBase;
                         fragText = "￼";
                     }
                     else if (flatItem is TextRunItem)
                     {
-                        var itemBase = flatIndex < _flatItemCharOffsets.Length
-                            ? _flatItemCharOffsets[flatIndex] : 0;
+                        var itemBase = flatIndex < _flatItemCharOffsets.Length ? _flatItemCharOffsets[flatIndex] : 0;
                         var consumed = consumedPerItem.GetValueOrDefault(flatIndex, 0);
                         fragCharStart = itemBase + consumed;
                         fragCharEnd = fragCharStart + fragment.Text.Length;
@@ -567,23 +595,17 @@ public class RichTextBlock : Panel
                         return;
                     }
 
-                    // Determine the actual rendered width using Uno's own font metrics.
-                    // PretextSharp's OccupiedWidth may over/under-estimate for some fonts;
-                    // measuring the TextBlock gives the ground-truth width for x-advance and
-                    // selection rects, eliminating gaps and clipping.
                     double fragmentWidth;
-                    UIElement el;
+                    UIElement? el;
                     if (flatItem is UiContainerItem uiItem)
                     {
                         fragmentWidth = uiItem.MeasuredWidth > 0 ? uiItem.MeasuredWidth : fragment.OccupiedWidth;
                         lineHeight = Math.Max(lineHeight, uiItem.MeasuredHeight);
-                        DiagLog($"Placing UiContainer @ ({x:F1},{y:F1}) w={fragmentWidth:F1} h={uiItem.MeasuredHeight:F1}");
-                        el = uiItem.Child;
+                        el = recordHitTest ? uiItem.Child : null;
                     }
                     else
                     {
                         var textItem = (TextRunItem)flatItem;
-                        var fragForeground = CloneBrush(textItem.Props.Foreground);
                         var stretchScale = InheritedProperties.FontStretchScale(textItem.Props.FontStretch);
                         var tb = new Microsoft.UI.Xaml.Controls.TextBlock
                         {
@@ -595,14 +617,13 @@ public class RichTextBlock : Panel
                             FontStretch = FontStretch.Normal,
                             CharacterSpacing = textItem.Props.CharacterSpacing,
                             TextWrapping = TextWrapping.NoWrap,
+                            Foreground = CloneBrush(textItem.Props.Foreground),
                         };
                         if (stretchScale != 1.0)
                         {
                             tb.RenderTransformOrigin = new Point(0, 0);
                             tb.RenderTransform = new ScaleTransform { ScaleX = stretchScale };
                         }
-                        tb.Foreground = fragForeground;
-                        DiagLog($"  frag tb created text=\"{fragment.Text}\" requested={fragForeground} actual={tb.Foreground}");
                         tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
                         fragmentWidth = (tb.DesiredSize.Width > 0 ? tb.DesiredSize.Width : fragment.OccupiedWidth) * stretchScale;
                         if (tb.DesiredSize.Height > 0)
@@ -616,92 +637,71 @@ public class RichTextBlock : Panel
                         el = tb;
                     }
 
-                    lineFragments.Add(new PendingPlacedFragment(
-                        el, flatItem, x, y, fragmentWidth,
-                        fragCharStart, fragCharEnd, fragText));
+                    lineFragments.Add(new PendingPlacedFragment(el!, flatItem, x, currentY - verticalOffset, fragmentWidth, fragCharStart, fragCharEnd, fragText));
                     x += fragmentWidth;
                 }
 
-                foreach (var placed in lineFragments)
+                var visualY = currentY - verticalOffset;
+                var lineVisible = visualY + lineHeight >= 0 && visualY <= viewportHeight;
+                if (lineVisible)
                 {
-                    _placedFragments.Add(new PlacedFragment(
-                        placed.X, placed.Y, placed.Width, lineHeight,
-                        placed.CharStart, placed.CharEnd, placed.Text));
-
-                    // TextHighlighter backgrounds behind the fragment.
-                    foreach (var textHighlighter in _textHighlighters)
+                    foreach (var placed in lineFragments)
                     {
-                        if (textHighlighter.Background is not null)
+                        if (recordHitTest)
+                            _placedFragments.Add(new PlacedFragment(placed.X, placed.Y, placed.Width, lineHeight, placed.CharStart, placed.CharEnd, placed.Text));
+
+                        foreach (var textHighlighter in _textHighlighters)
                         {
+                            if (textHighlighter.Background is null)
+                                continue;
                             foreach (var textRange in textHighlighter.Ranges)
                             {
                                 int rangeStart = textRange.StartIndex;
                                 int rangeEnd = rangeStart + textRange.Length;
-                                
-                                // Check if this range overlaps the placed fragment
                                 if (rangeEnd > placed.CharStart && rangeStart < placed.CharEnd)
                                 {
                                     var len = placed.CharEnd - placed.CharStart;
                                     var t0 = (double)(Math.Max(rangeStart, placed.CharStart) - placed.CharStart) / len;
                                     var t1 = (double)(Math.Min(rangeEnd, placed.CharEnd) - placed.CharStart) / len;
-                                    var highlightRect = new Rectangle
-                                    {
-                                        Width = (t1 - t0) * placed.Width,
-                                        Height = lineHeight,
-                                        Fill = CloneBrush(textHighlighter.Background)
-                                    };
+                                    var highlightRect = new Rectangle { Width = (t1 - t0) * placed.Width, Height = lineHeight, Fill = CloneBrush(textHighlighter.Background) };
                                     Canvas.SetLeft(highlightRect, placed.X + t0 * placed.Width);
                                     Canvas.SetTop(highlightRect, placed.Y);
-                                    _canvas.Children.Add(highlightRect);
+                                    target.Children.Add(highlightRect);
                                 }
                             }
                         }
-                    }
 
-                    // Selection highlight behind the fragment.
-                    if (hasSelection
-                        && placed.CharEnd > placed.CharStart
-                        && placed.CharEnd > selMin
-                        && placed.CharStart < selMax)
-                    {
-                        var len = placed.CharEnd - placed.CharStart;
-                        var t0 = (double)(Math.Max(selMin, placed.CharStart) - placed.CharStart) / len;
-                        var t1 = (double)(Math.Min(selMax, placed.CharEnd) - placed.CharStart) / len;
-                        var highlight = new Rectangle
+                        if (hasSelection && placed.CharEnd > placed.CharStart && placed.CharEnd > selMin && placed.CharStart < selMax)
                         {
-                            Width = (t1 - t0) * placed.Width,
-                            Height = lineHeight,
-                            Fill = SelectionHighlightColor
-                        };
-                        Canvas.SetLeft(highlight, placed.X + t0 * placed.Width);
-                        Canvas.SetTop(highlight, placed.Y);
-                        _canvas.Children.Add(highlight);
+                            var len = placed.CharEnd - placed.CharStart;
+                            var t0 = (double)(Math.Max(selMin, placed.CharStart) - placed.CharStart) / len;
+                            var t1 = (double)(Math.Min(selMax, placed.CharEnd) - placed.CharStart) / len;
+                            var highlight = new Rectangle { Width = (t1 - t0) * placed.Width, Height = lineHeight, Fill = SelectionHighlightColor };
+                            Canvas.SetLeft(highlight, placed.X + t0 * placed.Width);
+                            Canvas.SetTop(highlight, placed.Y);
+                            target.Children.Add(highlight);
+                        }
+
+                        if (placed.FlatItem is TextRunItem textRunItem)
+                            DrawDecorations(target, textRunItem.Props.TextDecorations, textRunItem.Props.Foreground, placed.X, placed.Y, placed.Width, lineHeight);
+
+                        if (placed.Element is not null)
+                        {
+                            Canvas.SetLeft(placed.Element, placed.X);
+                            Canvas.SetTop(placed.Element, placed.Y);
+                            target.Children.Add(placed.Element);
+                        }
                     }
-
-                    if (placed.FlatItem is TextRunItem textRunItem)
-                        DrawDecorations(textRunItem.Props.TextDecorations, textRunItem.Props.Foreground,
-                            placed.X, placed.Y, placed.Width, lineHeight);
-
-                    Canvas.SetLeft(placed.Element, placed.X);
-                    Canvas.SetTop(placed.Element, placed.Y);
-                    _canvas.Children.Add(placed.Element);
                 }
 
                 currentY += lineHeight;
             });
         }
 
-        _totalHeight = currentY;
-        _focusSink.Arrange(new Rect(0, 0, 0, 0));
-        _canvas.Width = finalSize.Width;
-        _canvas.Height = _totalHeight;
-        _canvas.Arrange(new Rect(0, 0, finalSize.Width, _totalHeight));
-        var firstTb = _canvas.Children.OfType<Microsoft.UI.Xaml.Controls.TextBlock>().FirstOrDefault();
-        DiagLog($"ArrangeOverride exit canvasChildren={_canvas.Children.Count} firstTbForeground={firstTb?.Foreground} firstTbText=\"{firstTb?.Text}\"");
-        return new Size(finalSize.Width, _totalHeight);
+        return currentY;
     }
 
-    private void DrawDecorations(TextDecorations decorations, Brush foreground, double x, double y, double width, double lineHeight)
+    private void DrawDecorations(Canvas target, TextDecorations decorations, Brush foreground, double x, double y, double width, double lineHeight)
     {
         if (decorations == TextDecorations.None) return;
 
@@ -710,14 +710,14 @@ public class RichTextBlock : Panel
             var r = new Rectangle { Width = width, Height = 1, Fill = CloneBrush(foreground) };
             Canvas.SetLeft(r, x);
             Canvas.SetTop(r, y + lineHeight * 0.55);
-            _canvas.Children.Add(r);
+            target.Children.Add(r);
         }
         if ((decorations & TextDecorations.Underline) != 0)
         {
             var r = new Rectangle { Width = width, Height = 1, Fill = CloneBrush(foreground) };
             Canvas.SetLeft(r, x);
             Canvas.SetTop(r, y + lineHeight * 0.88);
-            _canvas.Children.Add(r);
+            target.Children.Add(r);
         }
     }
 
@@ -1173,6 +1173,18 @@ public class RichTextBlock : Panel
             block.DiagLog($"OnLayoutPropertyChanged: prop={e.Property} old={e.OldValue} new={e.NewValue}");
             block.InvalidateMeasure();
         }
+    }
+
+    private static void OnOverflowContentTargetChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not RichTextBlock block)
+            return;
+
+        if (e.NewValue is RichTextBlockOverflow overflow)
+            overflow.ContentSource = block;
+
+        block.InvalidateMeasure();
+        block.InvalidateArrange();
     }
 
     private static void OnSelectionVisualPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

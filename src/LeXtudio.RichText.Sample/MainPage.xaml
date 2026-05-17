@@ -1,0 +1,487 @@
+<Page
+    x:Class="LeXtudio.RichText.Sample.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:doc="using:System.Windows.Documents"
+    xmlns:grid="using:UnoPropertyGrid"
+    xmlns:rt="using:LeXtudio.UI.Xaml.Controls"
+    xmlns:toolkit="using:CommunityToolkit.WinUI.Controls">
+
+    <Page.Resources>
+        <Style x:Key="GalleryCardStyle" TargetType="Border">
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Background" Value="#FAFAFA" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style x:Key="GalleryHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+    </Page.Resources>
+
+    <TabView
+        CanDragTabs="False"
+        CanReorderTabs="False"
+        IsAddTabButtonVisible="False">
+        <TabViewItem
+            Header="RichTextBlock"
+            IsClosable="False">
+            <Grid Padding="24" ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition MinWidth="200" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="320" MinWidth="200" />
+                </Grid.ColumnDefinitions>
+
+                <ScrollViewer
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="24">
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            FontSize="11"
+                            Foreground="#828282"
+                            Text="Live RichTextBlock Preview" />
+                        <Border
+                            Padding="16"
+                            Background="#F5F5F5"
+                            CornerRadius="8">
+                            <rt:RichTextBlock
+                                x:Name="LiveRichTextBlock"
+                                Background="Transparent"
+                                FontSize="15"
+                                LineHeight="24">
+                                <rt:RichTextBlock.Blocks>
+                                    <doc:Paragraph>
+                                        <doc:Run Text="This sample shows a live " />
+                                        <doc:Run FontWeight="SemiBold" Text="RichTextBlock" />
+                                        <doc:Run Text=" preview. Use the property grid on the right to adjust properties such as " />
+                                        <doc:Run FontStyle="Italic" Text="FontSize" />
+                                        <doc:Run Text=", " />
+                                        <doc:Run FontStyle="Italic" Text="Foreground" />
+                                        <doc:Run Text=", or " />
+                                        <doc:Run FontStyle="Italic" Text="LineHeight" />
+                                        <doc:Run Text="." />
+                                    </doc:Paragraph>
+                                    <doc:Paragraph>
+                                        <doc:Run Text="The property grid is bound directly to this RichTextBlock instance, so changes are applied immediately." />
+                                    </doc:Paragraph>
+                                </rt:RichTextBlock.Blocks>
+                            </rt:RichTextBlock>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <toolkit:GridSplitter
+                    Grid.Column="1"
+                    Width="8"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Stretch"
+                    Background="#40808080"
+                    ResizeDirection="Columns" />
+
+                <Border
+                    Grid.Column="2"
+                    Padding="16"
+                    VerticalAlignment="Stretch"
+                    Background="#FAFAFA"
+                    CornerRadius="8">
+                    <Grid RowSpacing="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition />
+                        </Grid.RowDefinitions>
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Text="RichTextBlock Properties" />
+                        <grid:PropertyGridControl
+                            Grid.Row="1"
+                            Margin="0,8,0,0"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            PropertyGridTheme="Light"
+                            ShowReadOnlyProperties="False"
+                            SelectedObject="{x:Bind LiveRichTextBlock, Mode=OneWay}" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </TabViewItem>
+
+        <TabViewItem
+            Header="RichTextBlock Gallery"
+            IsClosable="False">
+            <ScrollViewer
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
+                <StackPanel Padding="24" Spacing="24">
+                    <Border Style="{StaticResource GalleryCardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource GalleryHeaderStyle}" Text="A simple RichTextBlock." />
+                            <rt:RichTextBlock x:Name="SimpleRichTextBlockExample">
+                                <rt:RichTextBlock.Blocks>
+                                    <doc:Paragraph>I am a RichTextBlock.</doc:Paragraph>
+                                </rt:RichTextBlock.Blocks>
+                            </rt:RichTextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource GalleryCardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource GalleryHeaderStyle}" Text="A RichTextBlock with a custom selection highlight color." />
+                            <rt:RichTextBlock x:Name="SelectionHighlightRichTextBlockExample" SelectionHighlightColor="Green">
+                                <rt:RichTextBlock.Blocks>
+                                    <doc:Paragraph>
+                                        RichTextBlock provides a rich text display container that supports
+                                        <doc:Run FontStyle="Italic" FontWeight="Bold" Text="formatted text" />
+                                        , <doc:Hyperlink NavigateUri="https://learn.microsoft.com/windows/windows-app-sdk/api/winrt/microsoft.ui.xaml.Documents.Hyperlink">hyperlinks</doc:Hyperlink>
+                                        , inline images, and other rich content.
+                                    </doc:Paragraph>
+                                    <doc:Paragraph>RichTextBlock also supports a built-in overflow model.</doc:Paragraph>
+                                </rt:RichTextBlock.Blocks>
+                            </rt:RichTextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource GalleryCardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource GalleryHeaderStyle}" Text="A RichTextBlock with overflow." />
+                            <Grid Height="300">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition />
+                                    <ColumnDefinition />
+                                    <ColumnDefinition />
+                                </Grid.ColumnDefinitions>
+                                <rt:RichTextBlock
+                                    x:Name="OverflowRichTextBlockExample"
+                                    Grid.Column="0"
+                                    Margin="12,0"
+                                    OverflowContentTarget="{x:Bind firstOverflowContainer}"
+                                    TextAlignment="Justify">
+                                    <rt:RichTextBlock.Blocks>
+                                        <doc:Paragraph>Linked text containers allow text which does not fit in one element to overflow into a different element on the page. Creative use of linked text containers enables basic multicolumn support and other advanced page layouts.</doc:Paragraph>
+                                        <doc:Paragraph>Duis sed nulla metus, id hendrerit velit. Curabitur dolor purus, bibendum eu cursus lacinia, interdum vel augue. Aenean euismod eros et sapien vehicula dictum. Duis ullamcorper, turpis nec feugiat tincidunt, dui erat luctus risus, aliquam accumsan lacus est vel quam. Nunc lacus massa, varius eget accumsan id, congue sed orci. Duis dignissim hendrerit egestas. Proin ut turpis magna, sit amet porta erat. Nunc semper metus nec magna imperdiet nec vestibulum dui fringilla. Sed sed ante libero, nec porttitor mi. Ut luctus, neque vitae placerat egestas, urna leo auctor magna, sit amet ultricies ipsum felis quis sapien. Proin eleifend varius dui, at vestibulum nunc consectetur nec. Mauris nulla elit, ultrices a sodales non, aliquam ac est. Quisque sit amet risus nulla. Quisque vestibulum posuere velit, vitae vestibulum eros scelerisque sit amet. In in risus est, at laoreet dolor. Nullam aliquet pellentesque convallis. Ut vel tincidunt nulla. Mauris auctor tincidunt auctor.</doc:Paragraph>
+                                    </rt:RichTextBlock.Blocks>
+                                </rt:RichTextBlock>
+                                <rt:RichTextBlockOverflow
+                                    x:Name="firstOverflowContainer"
+                                    Grid.Column="1"
+                                    Margin="12,0"
+                                    automation:AutomationProperties.Name="firstOverflowContainer"
+                                    OverflowContentTarget="{x:Bind secondOverflowContainer}" />
+                                <rt:RichTextBlockOverflow
+                                    x:Name="secondOverflowContainer"
+                                    Grid.Column="2"
+                                    Margin="12,0"
+                                    automation:AutomationProperties.Name="secondOverflowContainer" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource GalleryCardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource GalleryHeaderStyle}" Text="RichTextBlock with custom TextHighlighting" />
+                            <rt:RichTextBlock x:Name="TextHighlightingRichTextBlock">
+                                <rt:RichTextBlock.Blocks>
+                                    <doc:Paragraph>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua</doc:Paragraph>
+                                </rt:RichTextBlock.Blocks>
+                            </rt:RichTextBlock>
+                            <ComboBox Header="Text highlighting color" SelectionChanged="HighlightColorCombobox_SelectionChanged">
+                                <ComboBoxItem Content="Yellow" IsSelected="True" />
+                                <ComboBoxItem Content="Red" />
+                                <ComboBoxItem Content="Blue" />
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabViewItem>
+
+        <TabViewItem
+            Header="RichEditBox"
+            IsClosable="False">
+            <Grid Padding="24" ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition MinWidth="200" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="320" MinWidth="200" />
+                </Grid.ColumnDefinitions>
+                <Grid RowSpacing="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock
+                        Margin="0,8,0,0"
+                        FontSize="11"
+                        Foreground="#828282"
+                        Text="Live RichEditBox Preview" />
+                    <Border
+                        Grid.Row="1"
+                        MinHeight="240"
+                        Padding="16"
+                        Background="#F5F5F5"
+                        CornerRadius="8">
+                        <Grid RowSpacing="8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition />
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <Button
+                                    Width="32"
+                                    Height="32"
+                                    Padding="0"
+                                    Click="LiveBoldButton_Click"
+                                    ToolTipService.ToolTip="Bold">
+                                    <TextBlock FontWeight="Bold" Text="B" />
+                                </Button>
+                                <Button
+                                    Width="32"
+                                    Height="32"
+                                    Padding="0"
+                                    Click="LiveItalicButton_Click"
+                                    ToolTipService.ToolTip="Italic">
+                                    <TextBlock FontStyle="Italic" Text="I" />
+                                </Button>
+                                <Button
+                                    Width="32"
+                                    Height="32"
+                                    Padding="0"
+                                    Click="LiveUnderlineButton_Click"
+                                    ToolTipService.ToolTip="Underline">
+                                    <TextBlock Text="U" TextDecorations="Underline" />
+                                </Button>
+                            </StackPanel>
+                            <rt:RichEditBox
+                                x:Name="LiveRichEditBox"
+                                Grid.Row="1"
+                                Background="Transparent"
+                                FontSize="15"
+                                MinHeight="200"
+                                PlaceholderText="Replace me here" />
+                        </Grid>
+                    </Border>
+                    <TextBlock
+                        Grid.Row="2"
+                        FontSize="13"
+                        Foreground="#5A5A5A"
+                        Text="Select text inside the editor and use the toolbar above. Properties on the right bind directly to this RichEditBox instance."
+                        TextWrapping="Wrap" />
+                </Grid>
+
+                <toolkit:GridSplitter
+                    Grid.Column="1"
+                    Width="8"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Stretch"
+                    Background="#40808080"
+                    ResizeDirection="Columns" />
+
+                <Border
+                    Grid.Column="2"
+                    Padding="16"
+                    VerticalAlignment="Stretch"
+                    Background="#FAFAFA"
+                    CornerRadius="8">
+                    <Grid RowSpacing="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition />
+                        </Grid.RowDefinitions>
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Text="RichEditBox Properties" />
+                        <grid:PropertyGridControl
+                            Grid.Row="1"
+                            Margin="0,8,0,0"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            PropertyGridTheme="Light"
+                            ShowReadOnlyProperties="False"
+                            SelectedObject="{x:Bind LiveRichEditBox, Mode=OneWay}" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </TabViewItem>
+
+        <TabViewItem
+            Header="RichEditBox Gallery"
+            IsClosable="False">
+            <ScrollViewer
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
+                <StackPanel Padding="24" Spacing="24">
+                    <Border Style="{StaticResource GalleryCardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource GalleryHeaderStyle}" Text="A simple text editor using RichEditBox." />
+                            <rt:RichEditBox automation:AutomationProperties.Name="simple text editor" Height="200" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource GalleryCardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource GalleryHeaderStyle}" Text="Customizing RichEditBox's CommandBarFlyout - Adding 'Share'" />
+                            <rt:RichEditBox
+                                x:Name="REBCustom"
+                                Width="800"
+                                Height="200"
+                                automation:AutomationProperties.Name="editor with custom menu"
+                                Loaded="REBCustom_Loaded"
+                                Unloaded="REBCustom_Unloaded" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource GalleryCardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource GalleryHeaderStyle}" Text="A custom editor with RichEditBox." />
+                            <RelativePanel Margin="0,0,0,20" HorizontalAlignment="Stretch">
+                                <Button
+                                    x:Name="openFileButton"
+                                    automation:AutomationProperties.Name="Open file"
+                                    Click="OpenButton_Click"
+                                    ToolTipService.ToolTip="Open file">
+                                    <FontIcon Glyph="&#xE8E5;" />
+                                </Button>
+                                <Button
+                                    automation:AutomationProperties.Name="Save file"
+                                    Click="SaveButton_Click"
+                                    RelativePanel.RightOf="openFileButton"
+                                    ToolTipService.ToolTip="Save file">
+                                    <FontIcon Glyph="&#xE74E;" />
+                                </Button>
+                                <Button
+                                    automation:AutomationProperties.Name="Bold"
+                                    Click="BoldButton_Click"
+                                    RelativePanel.LeftOf="italicButton"
+                                    ToolTipService.ToolTip="Bold">
+                                    <FontIcon Glyph="&#xE8DD;" />
+                                </Button>
+                                <Button
+                                    x:Name="italicButton"
+                                    automation:AutomationProperties.Name="Italic"
+                                    Click="ItalicButton_Click"
+                                    RelativePanel.LeftOf="fontColorButton"
+                                    ToolTipService.ToolTip="Italic">
+                                    <FontIcon Glyph="&#xE8DB;" />
+                                </Button>
+                                <DropDownButton
+                                    x:Name="fontColorButton"
+                                    automation:AutomationProperties.Name="Font color"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    RelativePanel.AlignRightWithPanel="True"
+                                    ToolTipService.ToolTip="Font color">
+                                    <SymbolIcon Symbol="FontColor" />
+                                    <DropDownButton.Flyout>
+                                        <Flyout Placement="Bottom">
+                                            <VariableSizedWrapGrid MaximumRowsOrColumns="3" Orientation="Horizontal">
+                                                <Button automation:AutomationProperties.Name="Red" Click="ColorButton_Click"><Rectangle Width="32" Height="32" Fill="Red" /></Button>
+                                                <Button automation:AutomationProperties.Name="Orange" Click="ColorButton_Click"><Rectangle Width="32" Height="32" Fill="Orange" /></Button>
+                                                <Button automation:AutomationProperties.Name="Yellow" Click="ColorButton_Click"><Rectangle Width="32" Height="32" Fill="Yellow" /></Button>
+                                                <Button automation:AutomationProperties.Name="Green" Click="ColorButton_Click"><Rectangle Width="32" Height="32" Fill="Green" /></Button>
+                                                <Button automation:AutomationProperties.Name="Blue" Click="ColorButton_Click"><Rectangle Width="32" Height="32" Fill="Blue" /></Button>
+                                                <Button automation:AutomationProperties.Name="Indigo" Click="ColorButton_Click"><Rectangle Width="32" Height="32" Fill="Indigo" /></Button>
+                                                <Button automation:AutomationProperties.Name="Violet" Click="ColorButton_Click"><Rectangle Width="32" Height="32" Fill="Violet" /></Button>
+                                                <Button automation:AutomationProperties.Name="Gray" Click="ColorButton_Click"><Rectangle Width="32" Height="32" Fill="Gray" /></Button>
+                                            </VariableSizedWrapGrid>
+                                        </Flyout>
+                                    </DropDownButton.Flyout>
+                                </DropDownButton>
+                                <rt:RichEditBox
+                                    x:Name="editor"
+                                    Height="200"
+                                    MinWidth="300"
+                                    automation:AutomationProperties.Name="Custom editor"
+                                    GotFocus="Editor_GotFocus"
+                                    RelativePanel.AlignLeftWithPanel="True"
+                                    RelativePanel.AlignRightWithPanel="True"
+                                    RelativePanel.Below="openFileButton"
+                                    TextChanged="Editor_TextChanged" />
+                                <StackPanel
+                                    Margin="0,10,0,0"
+                                    Orientation="Horizontal"
+                                    RelativePanel.AlignLeftWith="editor"
+                                    RelativePanel.Below="editor">
+                                    <TextBlock
+                                        Margin="0,0,0,4"
+                                        VerticalAlignment="Center"
+                                        Text="Find:" />
+                                    <TextBox
+                                        x:Name="findBox"
+                                        Width="224"
+                                        Margin="10,0,0,0"
+                                        GotFocus="FindBoxHighlightMatches"
+                                        LostFocus="FindBoxRemoveHighlights"
+                                        PlaceholderText="Enter search text"
+                                        TextChanged="FindBoxHighlightMatches" />
+                                </StackPanel>
+                            </RelativePanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource GalleryCardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Style="{StaticResource GalleryHeaderStyle}" Text="Rich edit box in math mode." />
+                            <rt:RichTextBlock x:Name="MathModeDescriptionRichTextBlock">
+                                <rt:RichTextBlock.Blocks>
+                                    <doc:Paragraph>Math mode enables users to have input automatically recognized and converted to math expressions while being received.</doc:Paragraph>
+                                </rt:RichTextBlock.Blocks>
+                            </rt:RichTextBlock>
+                            <rt:RichEditBox
+                                x:Name="MathEditor"
+                                Width="724"
+                                Height="80"
+                                HorizontalAlignment="Left"
+                                FontSize="16" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource GalleryCardStyle}">
+                        <StackPanel Spacing="16">
+                            <TextBlock Style="{StaticResource GalleryHeaderStyle}" Text="Working with MathML in RichEditBox" />
+                            <rt:RichTextBlock x:Name="MathMlDescriptionRichTextBlock">
+                                <rt:RichTextBlock.Blocks>
+                                    <doc:Paragraph>
+                                        <doc:Run FontWeight="SemiBold" Text="SetMathML" />
+                                        takes a MathML string and displays the equation in the
+                                        <doc:Run FontWeight="SemiBold" Text="RichEditBox" />
+                                        . It replaces any existing equation with the new one.
+                                    </doc:Paragraph>
+                                    <doc:Paragraph>
+                                        <doc:Run FontWeight="SemiBold" Text="GetMathML" />
+                                        retrieves the MathML string of the equation from the
+                                        <doc:Run FontWeight="SemiBold" Text="RichEditBox" />
+                                        .
+                                    </doc:Paragraph>
+                                </rt:RichTextBlock.Blocks>
+                            </rt:RichTextBlock>
+                            <rt:RichEditBox
+                                x:Name="mathEditor2"
+                                Width="724"
+                                Height="80"
+                                HorizontalAlignment="Left"
+                                FontSize="16"
+                                TextChanged="mathEditor2_TextChanged" />
+                            <TextBlock FontWeight="SemiBold" Text="MathML Code" />
+                            <TextBox
+                                x:Name="MathmlPresenter"
+                                MinHeight="140"
+                                AcceptsReturn="True"
+                                IsReadOnly="True"
+                                Text="&lt;!-- No MathML content --&gt;"
+                                TextWrapping="Wrap" />
+                            <Button
+                                HorizontalAlignment="Left"
+                                Click="SetMathmlFormulaBtn_Click"
+                                Content="Set sample formula" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabViewItem>
+    </TabView>
+</Page>
