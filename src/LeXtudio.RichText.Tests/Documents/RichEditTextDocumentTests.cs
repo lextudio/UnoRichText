@@ -150,6 +150,19 @@ public sealed class RichEditTextDocumentTests
     }
 
     [Test]
+    public void CollapsedSelectionUnderline_AppliesToTypedText()
+    {
+        var document = CreateDocument(string.Empty);
+        document.Selection.SetRange(0, 0);
+        document.Selection.CharacterFormat.Underline = UnderlineType.Single;
+
+        document.Selection.TypeText("x");
+
+        AssertText(document, "x");
+        AssertUnderlineRuns(document, (0, 1));
+    }
+
+    [Test]
     public void UndoRedo_Insert_RestoresAndReappliesRuns()
     {
         var document = CreateDocument("Hello");
@@ -238,6 +251,19 @@ public sealed class RichEditTextDocumentTests
         var runs = document.GetCharacterFormatRuns().Where(run => run.Format.Bold == FormatEffect.On).ToList();
         Assert.That(runs, Has.Count.EqualTo(1));
         Assert.That((runs[0].Start, runs[0].End), Is.EqualTo((1, 2)));
+    }
+
+    [Test]
+    public void CollapsedSelectionAtRunEnd_ReportsLeftRunFormat()
+    {
+        var document = CreateDocument("Hi");
+        document.GetRange(0, 2).CharacterFormat.Bold = FormatEffect.On;
+        document.GetRange(0, 2).CharacterFormat.Italic = FormatEffect.On;
+
+        document.Selection.SetRange(2, 2);
+
+        Assert.That(document.Selection.CharacterFormat.Bold, Is.EqualTo(FormatEffect.On));
+        Assert.That(document.Selection.CharacterFormat.Italic, Is.EqualTo(FormatEffect.On));
     }
 
     [Test]
@@ -346,6 +372,15 @@ public sealed class RichEditTextDocumentTests
     private static void AssertBoldRuns(RichEditDocument document, params (int start, int end)[] expected)
     {
         var runs = document.GetCharacterFormatRuns().Where(run => run.Format.Bold == FormatEffect.On).ToList();
+        Assert.That(runs, Has.Count.EqualTo(expected.Length));
+
+        for (int i = 0; i < expected.Length; i++)
+            Assert.That((runs[i].Start, runs[i].End), Is.EqualTo(expected[i]));
+    }
+
+    private static void AssertUnderlineRuns(RichEditDocument document, params (int start, int end)[] expected)
+    {
+        var runs = document.GetCharacterFormatRuns().Where(run => run.Format.Underline != UnderlineType.None).ToList();
         Assert.That(runs, Has.Count.EqualTo(expected.Length));
 
         for (int i = 0; i < expected.Length; i++)

@@ -569,7 +569,8 @@ public sealed class RichEditTextDocument
         position = Math.Clamp(position, 0, _buffer.Length);
 
         var format = (TextCharacterFormat)_defaultCharacterFormat.GetClone();
-        var run = _characterFormatRuns.FirstOrDefault(item => item.Start <= position && item.End > position);
+        var run = _characterFormatRuns.FirstOrDefault(item => item.Start <= position && item.End > position)
+            ?? _characterFormatRuns.FirstOrDefault(item => item.Start < position && item.End == position);
         if (run is not null)
         {
             format.SetClone(run.Format);

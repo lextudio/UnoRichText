@@ -5,7 +5,7 @@ using TextPointer = System.Windows.Documents.TextPointer;
 using TextSelection = System.Windows.Documents.TextSelection;
 
 namespace LeXtudio.UI.Xaml.Controls;
-
+#if RICHTEXTBOX
 /// <summary>
 /// Uno host for a WPF-shaped <see cref="FlowDocument"/>.
 /// </summary>
@@ -102,3 +102,4 @@ public sealed class RichTextBox : ContentControl
     private void OnRendererSelectionChanged(object sender, RoutedEventArgs e)
         => SelectionChanged?.Invoke(this, e);
 }
+#endif

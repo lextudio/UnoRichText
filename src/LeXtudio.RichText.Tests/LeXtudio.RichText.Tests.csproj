@@ -20,6 +20,7 @@
     <PackageReference Include="NUnit" />
     <PackageReference Include="NUnitLite" />
     <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Tmds.DBus.Protocol" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-desktop'">

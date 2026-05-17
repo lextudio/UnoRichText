@@ -59,9 +59,10 @@ public sealed partial class MainPage : Page
         var note = new Paragraph();
         note.Inlines.Add(new Run { Text = "Editing, caret, and selection parity are planned next.", FontWeight = FontWeights.SemiBold });
         document.Blocks.Add(note);
-
+#if RICHTEXTBOX
         LiveWpfRichTextBox.Document = document;
         UpdateWpfRichTextBoxSelectionStatus();
+#endif
     }
 
     private void EnsureGalleryRichTextBlocks()
@@ -409,19 +410,22 @@ public sealed partial class MainPage : Page
 
     private void LiveBoldButton_Click(object sender, RoutedEventArgs e)
     {
-        LiveRichEditBox.WrapSelection("**", "**");
+        LiveRichEditBox.Document.Selection.CharacterFormat.Bold = FormatEffect.Toggle;
+        LiveRichEditBox.Focus(FocusState.Keyboard);
     }
 
     private void LiveItalicButton_Click(object sender, RoutedEventArgs e)
     {
-        LiveRichEditBox.WrapSelection("*", "*");
+        LiveRichEditBox.Document.Selection.CharacterFormat.Italic = FormatEffect.Toggle;
+        LiveRichEditBox.Focus(FocusState.Keyboard);
     }
 
     private void LiveUnderlineButton_Click(object sender, RoutedEventArgs e)
     {
-        LiveRichEditBox.WrapSelection("__", "__");
+        LiveRichEditBox.ToggleSelectionUnderline();
+        LiveRichEditBox.Focus(FocusState.Keyboard);
     }
-
+#if RICHTEXTBOX
     private void SelectAllWpfRichTextBox_Click(object sender, RoutedEventArgs e)
     {
         LiveWpfRichTextBox.SelectAll();
@@ -445,4 +449,5 @@ public sealed partial class MainPage : Page
             ? "Selection: none"
             : $"Selection: {selectedText}";
     }
+#endif
 }

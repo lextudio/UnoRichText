@@ -21,6 +21,7 @@ using Windows.UI;
 using Windows.UI.Text;
 using LeXtudio.UI.Controls;
 using FlowDocuments = System.Windows.Documents;
+using InputScope = Microsoft.UI.Xaml.Input.InputScope;
 
 namespace LeXtudio.UI.Xaml.Controls;
 
@@ -268,11 +269,19 @@ public partial class RichEditBox : ContentControl
                 e.Handled = true;
                 break;
             case TextFormattingAccelerator.Underline:
-                Document.Selection.CharacterFormat.Underline = Microsoft.UI.Text.UnderlineType.Single;
+                ToggleSelectionUnderline();
                 e.Handled = true;
                 break;
         }
         LogDiagnostic($"FormattingAccelerator handled={e.Handled} runs={DescribeRuns()}");
+    }
+
+    public void ToggleSelectionUnderline()
+    {
+        var format = Document.Selection.CharacterFormat;
+        format.Underline = format.Underline == Microsoft.UI.Text.UnderlineType.None
+            ? Microsoft.UI.Text.UnderlineType.Single
+            : Microsoft.UI.Text.UnderlineType.None;
     }
 
     private void OnDocumentTextChanged(object? sender, System.EventArgs e)
