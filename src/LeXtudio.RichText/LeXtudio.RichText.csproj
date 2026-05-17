@@ -36,6 +36,16 @@
     <ProjectReference Include="..\..\..\WindowsShims\src\LeXtudio.Windows\LeXtudio.Windows.csproj" />
   </ItemGroup>
 
+  <!--
+    LeXtudio.TextBox is consumed as a ProjectReference because RichEditBox needs selection
+    API (SelectionStart / SelectionLength / SelectedText / SelectionChanged) and a toolbar-
+    friendly programmatic Insert/Wrap that the published NuGet 0.2.8 doesn't expose yet.
+    Flip to PackageReference once those land in a published version.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\TextCore.Uno\src\LeXtudio.TextBox\LeXtudio.TextBox.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="" />
     <None Include="..\..\LICENSE" Pack="true" PackagePath="" />

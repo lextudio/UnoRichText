@@ -1,5 +1,6 @@
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml.Media;
+using Windows.UI;
 using Windows.UI.Text;
 using System.Windows.Documents;
 
@@ -59,8 +60,15 @@ internal record InheritedProperties(
                           : FontStyle,
         FontStretch     = IsExplicitFontStretch(inline.FontStretch) ? inline.FontStretch : FontStretch,
         CharacterSpacing = IsExplicitCharacterSpacing(inline.CharacterSpacing) ? inline.CharacterSpacing : CharacterSpacing,
-        Foreground      = IsExplicitForeground(inline.Foreground) ? inline.Foreground! : Foreground,
-        TextDecorations = inline is Underline ? TextDecorations | global::Windows.UI.Text.TextDecorations.Underline : TextDecorations,
+        // Hyperlink uses WinUI-like defaults (blue + underline) unless explicitly overridden.
+        Foreground      = IsExplicitForeground(inline.Foreground)
+            ? inline.Foreground!
+            : inline is Hyperlink
+                ? new SolidColorBrush(Color.FromArgb(255, 0, 102, 204))
+                : Foreground,
+        TextDecorations = (inline is Underline || inline is Hyperlink)
+            ? TextDecorations | global::Windows.UI.Text.TextDecorations.Underline
+            : TextDecorations,
     };
 
     internal static global::Windows.UI.Text.FontWeight ConvertFontWeight(FontWeight wpfWeight)

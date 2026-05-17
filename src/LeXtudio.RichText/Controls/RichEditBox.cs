@@ -20,7 +20,7 @@ using Windows.UI.Text;
 
 namespace LeXtudio.UI.Xaml.Controls;
 
-public partial class RichEditBox : Control
+public partial class RichEditBox : ContentControl
 {
     // ---- Dependency properties --------------------------------------------------
 
@@ -167,10 +167,96 @@ public partial class RichEditBox : Control
 
     // ---- Constructor ------------------------------------------------------------
 
+    // Internal editing host — LeXtudio.UI.Controls.TextBox provides a real caret, selection,
+    // keyboard, and a CoreTextEditContext-backed IME bridge that works on all Uno platforms.
+    private readonly LeXtudio.UI.Controls.TextBox _editorHost;
+    private bool _syncingFromDocument;
+
     public RichEditBox()
     {
-        DefaultStyleKey = typeof(RichEditBox);
         Document = new LeXtudioTextDoc();
+
+        _editorHost = new LeXtudio.UI.Controls.TextBox
+        {
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+
+        // editor → Document
+        _editorHost.TextChanged += OnEditorHostTextChanged;
+        _editorHost.SelectionChanged += OnEditorHostSelectionChanged;
+
+        // Document → editor (when consumer calls Document.SetText programmatically)
+        Document.TextChanged += OnDocumentTextChanged;
+
+        Content = _editorHost;
+
+        // RichEditBox itself should fill whatever its parent gives it.
+        HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        VerticalContentAlignment = VerticalAlignment.Stretch;
+
+        // Propagate the WinUI-shape RichEditBox properties to the underlying host.
+        RegisterPropertyChangedCallback(PlaceholderTextProperty, (_, _) => _editorHost.PlaceholderText = PlaceholderText ?? string.Empty);
+        RegisterPropertyChangedCallback(AcceptsReturnProperty, (_, _) => _editorHost.AcceptsReturn = AcceptsReturn);
+        RegisterPropertyChangedCallback(TextWrappingProperty, (_, _) => _editorHost.TextWrapping = TextWrapping);
+        RegisterPropertyChangedCallback(HeaderProperty, (_, _) => _editorHost.Header = Header);
+
+        // Seed the host with the current property values (so they apply before any change).
+        _editorHost.PlaceholderText = PlaceholderText ?? string.Empty;
+    }
+
+    /// <summary>Exposes the underlying editor host so RichEditBox.Selection-style helpers can poke into it.</summary>
+    internal LeXtudio.UI.Controls.TextBox EditorHost => _editorHost;
+
+    /// <summary>
+    /// Wraps the current selection (or inserts at the caret) with <paramref name="prefix"/> /
+    /// <paramref name="suffix"/>. Used by the editor toolbar for bold / italic / underline /
+    /// code-span markdown-style formatting on a plain-text backing.
+    /// </summary>
+    public void WrapSelection(string prefix, string suffix) => _editorHost.WrapSelection(prefix, suffix);
+
+    /// <summary>Inserts <paramref name="text"/> at the caret (or replaces the selection).</summary>
+    public void InsertText(string text) => _editorHost.ReplaceSelection(text);
+
+    /// <summary>Replaces the current selection with text after applying a transform.</summary>
+    public void TransformSelectedText(System.Func<string, string> transform)
+    {
+        if (transform is null) return;
+        _editorHost.ReplaceSelection(transform(_editorHost.SelectedText ?? string.Empty));
+    }
+
+    private void OnDocumentTextChanged(object? sender, System.EventArgs e)
+    {
+        if (_syncingFromDocument) return;
+        _syncingFromDocument = true;
+        try
+        {
+            Document.GetText(Microsoft.UI.Text.TextGetOptions.None, out var s);
+            if (_editorHost.Text != s) _editorHost.Text = s ?? string.Empty;
+        }
+        finally { _syncingFromDocument = false; }
+    }
+
+    private void OnEditorHostTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_syncingFromDocument) return;
+        _syncingFromDocument = true;
+        try
+        {
+            Document.SetText(Microsoft.UI.Text.TextSetOptions.None, _editorHost.Text);
+            RaiseTextChanged(new RoutedEventArgs());
+        }
+        finally { _syncingFromDocument = false; }
+    }
+
+    private void OnEditorHostSelectionChanged(object sender, RoutedEventArgs e)
+    {
+        int start = _editorHost.SelectionStart;
+        int length = _editorHost.SelectionLength;
+        Document.Selection.SetRange(start, start + length);
+        RaiseSelectionChanged(e);
     }
 
     // ---- Methods (parity-shaped) ------------------------------------------------

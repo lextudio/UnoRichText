@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Text;
 using Microsoft.UI.Input;
@@ -96,8 +97,11 @@ public class RichTextBlock : Panel
     private static readonly System.Windows.FrameworkContentElement WpfCollectionOwner = new();
 
     private readonly Canvas _canvas = new();
-    private readonly InlineCollection _inlines;
-    private readonly BlockCollection _blocks;
+    // Use the WPF-shaped collections from System.Windows.Documents (our shim) explicitly —
+    // unqualified BlockCollection / InlineCollection would resolve to Uno's not-implemented
+    // Microsoft.UI.Xaml.Documents projections.
+    private readonly System.Windows.Documents.InlineCollection _inlines;
+    private readonly System.Windows.Documents.BlockCollection _blocks;
     private readonly FocusSink _focusSink = new();
     private readonly RichTextBlockTextLayoutHost _textLayoutHost;
 
@@ -110,15 +114,15 @@ public class RichTextBlock : Panel
     private int _selectionAnchor = -1;
     private int _selectionFocus = -1;
     private bool _isPointerDown;
-    private readonly IList<Microsoft.UI.Xaml.Documents.TextHighlighter> _textHighlighters = new List<Microsoft.UI.Xaml.Documents.TextHighlighter>();
+    private readonly ObservableCollection<TextHighlighter> _textHighlighters = new();
 
     public RichTextBlock()
     {
         VerticalAlignment = VerticalAlignment.Top;
         HorizontalAlignment = HorizontalAlignment.Stretch;
         _textLayoutHost = new RichTextBlockTextLayoutHost(this);
-        _inlines = new InlineCollection(WpfCollectionOwner, true);
-        _blocks = new BlockCollection(WpfCollectionOwner, true);
+        _inlines = new System.Windows.Documents.InlineCollection(WpfCollectionOwner, true);
+        _blocks = new System.Windows.Documents.BlockCollection(WpfCollectionOwner, true);
 
         lock (AllInstances)
         {
@@ -130,6 +134,7 @@ public class RichTextBlock : Panel
         Children.Add(_focusSink);
         _inlines.CollectionChanged += OnContentChanged;
         _blocks.CollectionChanged += OnBlocksChanged;
+        _textHighlighters.CollectionChanged += OnTextHighlightersChanged;
         AddHandler(PointerPressedEvent, new PointerEventHandler(OnPointerPressed), true);
         AddHandler(PointerMovedEvent, new PointerEventHandler(OnPointerMoved), true);
         AddHandler(PointerReleasedEvent, new PointerEventHandler(OnPointerReleased), true);
@@ -179,8 +184,8 @@ public class RichTextBlock : Panel
 
     // ── Public API ────────────────────────────────────────────────────
 
-    public InlineCollection Inlines => _inlines;
-    public BlockCollection Blocks => _blocks;
+    public System.Windows.Documents.InlineCollection Inlines => _inlines;
+    public System.Windows.Documents.BlockCollection Blocks => _blocks;
     public System.Windows.Documents.ITextLayoutHost TextLayoutHost => _textLayoutHost;
     internal bool IsTextLayoutValid => _preparedSegments.Length == 0 || _flatItems is not null;
     internal double ExtentHeight => _totalHeight;
@@ -327,7 +332,7 @@ public class RichTextBlock : Panel
         set => SetValue(TextDecorationsProperty, value);
     }
 
-    public IList<Microsoft.UI.Xaml.Documents.TextHighlighter> TextHighlighters => _textHighlighters;
+    public ObservableCollection<TextHighlighter> TextHighlighters => _textHighlighters;
 
     public double TextIndent
     {
@@ -622,6 +627,36 @@ public class RichTextBlock : Panel
                     _placedFragments.Add(new PlacedFragment(
                         placed.X, placed.Y, placed.Width, lineHeight,
                         placed.CharStart, placed.CharEnd, placed.Text));
+
+                    // TextHighlighter backgrounds behind the fragment.
+                    foreach (var textHighlighter in _textHighlighters)
+                    {
+                        if (textHighlighter.Background is not null)
+                        {
+                            foreach (var textRange in textHighlighter.Ranges)
+                            {
+                                int rangeStart = textRange.StartIndex;
+                                int rangeEnd = rangeStart + textRange.Length;
+                                
+                                // Check if this range overlaps the placed fragment
+                                if (rangeEnd > placed.CharStart && rangeStart < placed.CharEnd)
+                                {
+                                    var len = placed.CharEnd - placed.CharStart;
+                                    var t0 = (double)(Math.Max(rangeStart, placed.CharStart) - placed.CharStart) / len;
+                                    var t1 = (double)(Math.Min(rangeEnd, placed.CharEnd) - placed.CharStart) / len;
+                                    var highlightRect = new Rectangle
+                                    {
+                                        Width = (t1 - t0) * placed.Width,
+                                        Height = lineHeight,
+                                        Fill = CloneBrush(textHighlighter.Background)
+                                    };
+                                    Canvas.SetLeft(highlightRect, placed.X + t0 * placed.Width);
+                                    Canvas.SetTop(highlightRect, placed.Y);
+                                    _canvas.Children.Add(highlightRect);
+                                }
+                            }
+                        }
+                    }
 
                     // Selection highlight behind the fragment.
                     if (hasSelection
@@ -978,16 +1013,35 @@ public class RichTextBlock : Panel
         InvalidateMeasure();
     }
 
+    private void OnTextHighlightersChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        // When TextHighlighters collection changes, invalidate layout to re-render highlights
+        InvalidateArrange();
+    }
+
     private void OnHyperlinkTapped(Hyperlink link)
     {
         link.RaiseClick();
+
+        if (link.NavigateUri is { } uri)
+        {
+            try
+            {
+                _ = Launcher.LaunchUriAsync(uri);
+            }
+            catch
+            {
+                // Keep behavior non-fatal; host app may handle LinkClicked itself.
+            }
+        }
+
         LinkClicked?.Invoke(this, new HyperlinkClickEventArgs(link));
     }
 
     // ── Flatten ───────────────────────────────────────────────────────
 
     private static void FlattenInlines(
-        InlineCollection inlines,
+        System.Windows.Documents.InlineCollection inlines,
         List<FlatItem> result,
         InheritedProperties inherited,
         Hyperlink? currentLink = null)

@@ -30,6 +30,12 @@ namespace LeXtudio.UI.Text;
 // mirrors that shape — no formal interface, methods surface directly on the class.
 public sealed class RichEditTextDocument
 {
+    /// <summary>
+    /// Raised after the document buffer is mutated (via SetText, LoadFromStream, …).
+    /// Internal-only: lets the hosting RichEditBox sync its editor view.
+    /// </summary>
+    internal event System.EventHandler? TextChanged;
+
     private readonly StringBuilder _buffer = new();
     private readonly RichEditTextSelection _selection;
     private TextCharacterFormat _defaultCharacterFormat = new();
@@ -108,6 +114,7 @@ public sealed class RichEditTextDocument
         if (!string.IsNullOrEmpty(value))
             _buffer.Append(value);
         _selection.SetRange(0, 0);
+        TextChanged?.Invoke(this, System.EventArgs.Empty);
     }
 
     public void ClearUndoRedoHistory() { /* TODO: clear undo stack */ }
