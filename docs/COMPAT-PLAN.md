@@ -1,12 +1,18 @@
-# Plan: 100% RichTextBlock API Parity with WinUI 3
+# Plan: 100% Rich Text Control API Parity with WinUI 3
 
-Target: **100%** API parity measured by [`tools/RichTextBlockCompat`](../tools/RichTextBlockCompat/README.md) against [`COMPAT-REPORT.md`](COMPAT-REPORT.md).
+Target: **100%** API parity measured by [`tools/RichTextBlockCompat`](../tools/RichTextBlockCompat/README.md) against [`COMPAT-REPORT.md`](COMPAT-REPORT.md) for **all three controls**:
+
+- `RichTextBlock`
+- `RichTextBlockOverflow`
+- `RichEditBox`
+
+…and their associated document-model types.
 
 ## Scope Clarification (Three Categories)
 
-1. **WinUI 3 (Windows App SDK)** — `Microsoft.UI.Xaml.*` as declared by Microsoft. **This is the reference.**
+1. **WinUI 3 (Windows App SDK)** — `Microsoft.UI.Xaml.*` and `Microsoft.UI.Text.*` as declared by Microsoft. **This is the reference.**
 2. *(out of scope)* — Any other reimplementation of `Microsoft.UI.Xaml.*`. We do not compare against it, depend on its implementation status, or inherit from its types in our public surface.
-3. **UnoRichText (ours)** — `LeXtudio.UI.Xaml.Controls.RichTextBlock` + `System.Windows.Documents.*` shim types. **This is the subject.**
+3. **UnoRichText (ours)** — the three controls + `System.Windows.Documents.*` document model + `Microsoft.UI.Text.*` text-document model (`RichEditTextDocument`, `ITextRange`, `ITextSelection`, `ITextCharacterFormat`, `ITextParagraphFormat`, supporting enums and structs). **This is the subject.**
 
 Parity is measured between (1) and (3). The tool must load its reference metadata directly from the Windows App SDK package — not from the runtime our code happens to compile against.
 
@@ -25,7 +31,11 @@ Neither strategy involves inheriting from any reimplementation of WinUI in (2) �
 
 These constraints apply to all parity work. Violating them requires explicit approval per change.
 
-**`LeXtudio.UI.Xaml.Controls.RichTextBlock`** — fully owned by us. Add members directly to the type's existing source files. Any organization is fine.
+**`LeXtudio.UI.Xaml.Controls.RichTextBlock`** — fully owned by us. Add members directly.
+
+**`LeXtudio.UI.Xaml.Controls.RichTextBlockOverflow`** — fully owned by us. Add members directly. New control; no upstream WPF analogue (the WPF analogue is `FlowDocumentScrollViewer` / `FlowDocumentPageViewer`, which we are not porting).
+
+**`LeXtudio.UI.Xaml.Controls.RichEditBox`** — fully owned by us. Add members directly. No upstream WPF source is being linked for this control's body; `RichEditBox` has no clean WPF analogue (WPF uses `RichTextBox`, which has a different document model and is not being ported).
 
 **`System.Windows.Documents.*` types** (`Run`, `Span`, `Paragraph`, `Block`, `Inline`, `Hyperlink`, `Bold`, `Italic`, `Underline`, `LineBreak`, `InlineUIContainer`, `TextElement`, …) — these are ported from upstream WPF source. The file conventions are:
 
@@ -35,9 +45,9 @@ These constraints apply to all parity work. Violating them requires explicit app
 | `Type.wpf.cs` | **Read-only** (WPF target adapter) | WPF-target-specific glue |
 | `Type.uno.cs` | **Editable** | Uno/WinUI bridging — this is where parity-fill members live |
 
-All new members for parity go into `Type.uno.cs` as a partial-class extension of the document type. If a document type doesn't yet have a `.uno.cs` partial, create one. If a member must be added to the upstream `.cs` or `.wpf.cs` (e.g. because partial-class semantics can't express it cleanly), pause and seek explicit approval before making the edit.
+All new members for parity go into `Type.uno.cs` as a partial-class extension. If a document type doesn't yet have a `.uno.cs` partial, create one. If a member must be added to the upstream `.cs` or `.wpf.cs`, pause and seek explicit approval.
 
-This also implies all document types must be declared `partial` in their upstream `.cs` files. They generally already are; if one isn't, that single keyword change is the kind that needs approval.
+**`Microsoft.UI.Text.*` text-document types** (`RichEditTextDocument`, `ITextRange`, `ITextSelection`, `ITextCharacterFormat`, `ITextParagraphFormat`, plus enum/struct types). These are entirely new files we author. Place them under `LeXtudio.RichText/TextDocument/`. They are fully editable; no upstream linkage.
 
 ### Stub vs Implement
 
@@ -45,63 +55,100 @@ For every member we add:
 
 | Class | Behavior | When |
 |---|---|---|
-| **Implement** | Real working code | The member is used by the `RichTextBlock` render/interaction path or by realistic consumers |
-| **Stub** | Sensible default (`0` / `null` / no-op event), never throws | The member is in a non-goal area (TextPointer, AccessKey, KeyTip) but its absence breaks compile |
+| **Implement** | Real working code | The member is used by the rendering or editing path or by realistic consumers |
+| **Stub** | Sensible default (`0` / `null` / no-op event), never throws | The member is in a non-goal area (KeyTip, AccessKey, proofing word lists) but its absence breaks compile |
 
 **Stubs do not throw `NotImplementedException`.** Throwing breaks "drop-in compile" just as badly as a missing member.
 
-## Phase 1 — Make the Tool Authoritative
+For `RichEditBox` specifically, the "implement" line is drawn around editing, selection, IME, undo/redo, clipboard, character/paragraph formatting, and read-only state. Spell-check is API-present, behavior-stub.
 
-**Gate before any code change to (3).** Until the tool's reference is real WinUI 3 metadata, every parity number is suspect.
+## Phases
 
-- [ ] Refactor `tools/RichTextBlockCompat` to use `System.Reflection.MetadataLoadContext`.
-- [ ] Resolve reference metadata from the **Microsoft.WindowsAppSDK** NuGet package directly (`Microsoft.WinUI.dll`).
-- [ ] Resolve subject metadata from `LeXtudio.RichText.dll` + `LeXtudio.Windows.dll` build outputs.
-- [ ] Remove any "Uno-stubbed" annotation paths — they're (2)-related and out of scope.
-- [ ] Regenerate `COMPAT-REPORT.md`; capture the **true baseline** percentage. The current 53.2% number is against (2); the WinUI 3 number may be different (likely lower, possibly different shape).
+### Phase 1 — Tool: extend `TypePairs` and refresh baseline
 
-## Phase 2 — Decide the Mechanism (and possibly extend the tool)
+**Gate before any new code on the three controls.**
 
-Before mass member additions, pick the mechanism explicitly.
+- [ ] Extend `tools/RichTextBlockCompat/TypePairs.cs` to include:
+  - `Microsoft.UI.Xaml.Controls.RichTextBlockOverflow` ↔ `LeXtudio.UI.Xaml.Controls.RichTextBlockOverflow`
+  - `Microsoft.UI.Xaml.Controls.RichEditBox` ↔ `LeXtudio.UI.Xaml.Controls.RichEditBox`
+  - `Microsoft.UI.Text.RichEditTextDocument` ↔ `Microsoft.UI.Text.RichEditTextDocument` (ours, same namespace)
+  - `Microsoft.UI.Text.ITextDocument` ↔ `Microsoft.UI.Text.ITextDocument`
+  - `Microsoft.UI.Text.ITextRange` ↔ `Microsoft.UI.Text.ITextRange`
+  - `Microsoft.UI.Text.ITextSelection` ↔ `Microsoft.UI.Text.ITextSelection`
+  - `Microsoft.UI.Text.ITextCharacterFormat` ↔ `Microsoft.UI.Text.ITextCharacterFormat`
+  - `Microsoft.UI.Text.ITextParagraphFormat` ↔ `Microsoft.UI.Text.ITextParagraphFormat`
+- [ ] Confirm metadata loader picks up `LeXtudio.RichText.dll` for the new types (and `LeXtudio.Windows.dll` for any document types we still resolve through the shim).
+- [ ] Regenerate `COMPAT-REPORT.md` and capture the **new baseline**. `RichTextBlock` should stay near its current coverage; `RichTextBlockOverflow`, `RichEditBox`, and the `Microsoft.UI.Text.*` rows will start at 0% — that is the input to the rest of the plan.
 
-- **Default:** real members on our types. Simpler, no tool change required, no consumer-import friction.
-- **Only if we are forced to use C# 14 extension members:** extend `tools/RichTextBlockCompat` to additionally scan source files for `extension(LocalType)` blocks via Roslyn and merge those members into the local surface before comparison.
+### Phase 2 — `RichTextBlockOverflow`
 
-Document the choice in `DESIGN.md` so future contributors don't drift.
+`RichTextBlockOverflow` is smaller than `RichEditBox` and exercises chained-layout plumbing we already need for `RichTextBlock`'s `HasOverflowContent` / `OverflowContentTarget`. Closing it first validates that plumbing.
 
-## Phase 3 — Diagnose the Real Gap
+Implementation order:
 
-Once Phase 1 lands a real baseline:
+- [ ] Declare the type as a `Control` (matching WinUI base) under `LeXtudio.UI.Xaml.Controls`.
+- [ ] DPs: `ContentSource`, `OverflowContentTarget`, `HasOverflowContent`, `IsTextTrimmed`, `MaxLines`, `Padding`.
+- [ ] Layout: in `MeasureOverride` / `ArrangeOverride`, ask the upstream source (a `RichTextBlock` or another `RichTextBlockOverflow`) for the next slice of its rendered content and paint it into our `Canvas`.
+- [ ] Forward selection events to the source so cross-region selection works.
+- [ ] Events: `IsTextTrimmedChanged`, `SelectionChanged` (proxied to source).
+- [ ] Re-run compat tool; iterate until `RichTextBlockOverflow` ≥ 95%.
 
-- [ ] Recompute the "Gap by Member Kind" table. The earlier diagnosis (Properties dominate) was correct at the level of *what* is missing but was measured against the wrong reference. Re-confirm.
-- [ ] Cluster the gap. Likely clusters based on WinUI 3's shape:
-  - `TextElement`-level surface (AccessKey, BaseLineAlignment, CharacterSpacing, FontStretch, Language, TextDecorations, KeyTip*) → 30–40 members repeated across every document type
-  - `Hyperlink`-specific (NavigateUri, UnderlineStyle, Click, RequestNavigate) → ~30 members
-  - `RichTextBlock`-specific (MaxLines, OverflowContentTarget, IsColorFontEnabled, SelectionChanged, etc.) → ~50 members
-  - TextPointer-dependent members (`ContentStart`, `ContentEnd`, `BaselineOffset`, `GetPositionFromPoint`) → stub category
+### Phase 3 — Text-document model (`Microsoft.UI.Text.*`)
 
-## Phase 4 — Close the Document-Type Surface
+Before `RichEditBox` can be implemented, its `Document` surface must exist.
 
-For every member on WinUI 3's `TextElement`, `Block`, `Inline`, `Paragraph`, `Run`, `Span`, `Bold`, `Italic`, `Underline`, `Hyperlink`, `LineBreak`, `InlineUIContainer`:
+Implementation order:
 
-- [ ] **All edits land in `Type.uno.cs`** (the Uno partial). The upstream `Type.cs` and `Type.wpf.cs` stay read-only unless explicitly approved. Create `Type.uno.cs` if it doesn't exist.
-- [ ] Declare the member on the local partial class (or on a shared base if the same member appears across many types).
-- [ ] If it's a `DependencyProperty` getter (e.g. `static DependencyProperty FontSizeProperty { get; }`), register a real DP on our type with the correct name/type/metadata.
-- [ ] If it's a regular property with `get`/`set`, wire it to a DP, or to plain field storage if it's not bindable in WinUI 3.
-- [ ] If it's an event, store handlers in `ConditionalWeakTable` keyed by instance; raise from the relevant interaction path if `Implement`, else leave dead if `Stub`.
-- [ ] If it's a method, implement or stub per the table above.
+- [ ] `Microsoft.UI.Text` enums and supporting types — `TextGetOptions`, `TextSetOptions`, `TextRangeUnit`, `TextScript`, `TextConstants`, `RichEditMathMode`, etc. Match WinUI names and member values.
+- [ ] `ITextRange`, `ITextSelection`, `ITextCharacterFormat`, `ITextParagraphFormat` interfaces — declare with WinUI shapes.
+- [ ] Concrete implementations: `TextRange`, `TextSelection`, `TextCharacterFormat`, `TextParagraphFormat` (internal classes; public API is the interfaces).
+- [ ] `RichEditTextDocument : ITextDocument` — `GetText`, `SetText`, `GetRange`, `Selection`, `LoadFromStream`, `SaveToStream` (RTF and plain text). Streams use `Windows.Storage.Streams.IRandomAccessStream`.
+- [ ] Round-trip tests for plain text and RTF.
 
-Re-run the compat tool after each cluster (TextElement surface, then Inline surface, etc.).
+### Phase 4 — `RichEditBox`
 
-## Phase 5 — Close the RichTextBlock-specific Surface
+**Source reuse map** — before writing new code, pull from these siblings:
 
-Same mechanics, applied to members declared on `Microsoft.UI.Xaml.Controls.RichTextBlock` directly. The control already inherits the `FrameworkElement` surface, so the gap is the RichTextBlock-specific properties/events/methods.
+| Concern | Reuse from |
+|---|---|
+| IME / text-services | `TextCore.Uno/src/LeXtudio.UI.Text.Core` (`CoreTextEditContext`, `Win32TextInputAdapter`, `MacOSTextInputAdapter`, `LinuxIbusTextInputAdapter`, `X11KeyHelper`) |
+| Control-template scaffolding | `TextCore.Uno/src/LeXtudio.TextBox/Controls/TextBox.cs` |
+| WPF-ported document model (Run, Span, Paragraph, Hyperlink, List, ListItem, Section, TextPointer, FlowDocument) | `WindowsShims/src/LeXtudio.Windows/System.Windows/Documents/*` |
+| WPF-ported editing commands & input plumbing (`EditingCommands`, `ApplicationCommands`, `RoutedCommand`, `CommandBinding`, `KeyGesture`, `TextCompositionEventArgs`) | `WindowsShims/src/LeXtudio.Windows/System.Windows/Input/*` |
+| WPF-ported text-pointer / range editing helpers (`TextRangeEdit`, `TextRangeEditTables`, `TextSchema`, `ITextPointer`, `ITextLayoutHost`) | `WindowsShims/src/LeXtudio.Windows/System.Windows/Documents/*` and `WindowsShims/src/LeXtudio.Windows/MS.Internal/*` |
+| Caret + blink + setter callbacks | `UnoEdit/src/UnoEdit/Editing/Caret.uno.cs` |
+| Selection model + clipboard HTML/RTF fragment | `UnoEdit/src/UnoEdit/Editing/Selection.cs` |
+| Caret navigation accelerators | `UnoEdit/src/UnoEdit/Editing/CaretNavigationCommandHandler.uno.cs` |
+| Editing commands (Ctrl+B/I/U, Cut/Copy/Paste, Undo/Redo) | `UnoEdit/src/UnoEdit/Editing/EditingCommandHandler.uno.cs` |
+| Pointer / mouse selection | `UnoEdit/src/UnoEdit/Editing/SelectionMouseHandler.uno.cs` |
+| Input handler stack | `UnoEdit/src/UnoEdit/Editing/InputHandlers.cs` |
+| Inline text layout / rendering | `Pretext.Uno` (already a dependency of `LeXtudio.RichText`) |
 
-## Phase 6 — Resolve Signature Mismatches
+Implementation order:
 
-Any `:warning: Mismatch` rows in the report are stronger violations than missing members — same name + same kind but wrong shape. For each: change the local signature to match WinUI 3. Divergence here is almost always a bug we'd want to fix anyway.
+- [ ] Declare as `Control` with template parts `ContentElement` (scroll container), `PlaceholderTextContentPresenter`, `HeaderContentPresenter`.
+- [ ] DPs covering: `Header`, `HeaderTemplate`, `PlaceholderText`, `IsReadOnly`, `IsSpellCheckEnabled`, `IsTextPredictionEnabled`, `MaxLength`, `AcceptsReturn`, `TextAlignment`, `TextWrapping`, `Document`, `SelectionHighlightColor`, `SelectionHighlightColorWhenNotFocused`, `SelectionFlyout`, `ContextFlyout`, `DesiredCandidateWindowAlignment`, `InputScope`, `TextReadingOrder`, `PreventKeyboardDisplayOnProgrammaticFocus`, `ClipboardCopyFormat`, `CharacterCasing`, `HorizontalTextAlignment`, `CornerRadius`, `Description`, `DisabledFormattingAccelerators`, `ProofingMenuFlyout`, etc.
+- [ ] Caret + blink, drawn into the same `Canvas`/`Path` model used by `RichTextBlock`.
+- [ ] Mouse / touch / pen pointer input → selection.
+- [ ] Keyboard input — character input, deletion, navigation, accelerators (Ctrl+B, Ctrl+I, Ctrl+U, Ctrl+C/X/V, Ctrl+Z/Y, Ctrl+A, Home/End, Page Up/Down, Shift+nav, Ctrl+Shift+nav).
+- [ ] IME composition (via `CoreTextEditContext` on platforms that support it; soft IME bridging through `InputPane`).
+- [ ] Undo/redo stack.
+- [ ] Clipboard cut/copy/paste (plain text, RTF, and OLE on Windows).
+- [ ] Visual states: `Normal`, `Disabled`, `PointerOver`, `Focused`, `ReadOnly`, `FocusedDisabled`.
+- [ ] Events: `TextChanging`, `TextChanged`, `SelectionChanged`, `SelectionChanging`, `BeforeTextChanging`, `ContextMenuOpening`, `Paste`, `CopyingToClipboard`, `CuttingToClipboard`, `CandidateWindowBoundsChanged`, `TextCompositionStarted` / `Changed` / `Ended`.
+- [ ] Methods: `Focus(FocusState)`, `Undo`, `Redo`, `Copy`, `Cut`, `Paste`, `SelectAll`.
 
-## Phase 7 — Long Tail and Gate
+### Phase 5 — Sync `RichTextBlock` + Overflow chain
+
+- [ ] Implement `RichTextBlock.HasOverflowContent` and `OverflowContentTarget` to actually chain into `RichTextBlockOverflow`.
+- [ ] Verify cross-region selection round-trips.
+- [ ] Re-run compat; `RichTextBlock` coverage should hold.
+
+### Phase 6 — Resolve Signature Mismatches
+
+Any `:warning: Mismatch` rows in the report are stronger violations than missing members — same name + same kind but wrong shape. For each: change the local signature to match WinUI 3.
+
+### Phase 7 — Long Tail and Gate
 
 - [ ] Anything still missing: investigate, implement or stub.
 - [ ] When overall hits 100%, add the CI gate:
@@ -119,3 +166,13 @@ dotnet run --project UnoRichText/tools/RichTextBlockCompat
 ```
 
 The report has per-type coverage, gap-by-kind, and a "Gaps" table per type — work from the top of those tables down.
+
+## Sequencing Note
+
+The phases are sequential because each phase produces APIs the next phase needs:
+
+```
+Phase 1 (tool) → Phase 2 (Overflow) → Phase 3 (text-document model) → Phase 4 (RichEditBox) → Phase 5 (chain) → Phase 6 (mismatch fixes) → Phase 7 (gate)
+```
+
+Phases 2 and 3 are independent of each other and can run in parallel if multiple contributors are available.

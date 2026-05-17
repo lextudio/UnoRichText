@@ -10,10 +10,16 @@ public static class TypePairs
 {
     public static IReadOnlyList<TypePair> All { get; } = new[]
     {
-        // The control itself
+        // The controls
         new TypePair(
             "Microsoft.UI.Xaml.Controls.RichTextBlock",
             "LeXtudio.UI.Xaml.Controls.RichTextBlock"),
+        new TypePair(
+            "Microsoft.UI.Xaml.Controls.RichTextBlockOverflow",
+            "LeXtudio.UI.Xaml.Controls.RichTextBlockOverflow"),
+        new TypePair(
+            "Microsoft.UI.Xaml.Controls.RichEditBox",
+            "LeXtudio.UI.Xaml.Controls.RichEditBox"),
 
         // Document model — block types
         new TypePair(
@@ -51,6 +57,26 @@ public static class TypePairs
         new TypePair(
             "Microsoft.UI.Xaml.Documents.InlineUIContainer",
             "System.Windows.Documents.InlineUIContainer"),
+
+        // RichEditBox text-document model (Microsoft.UI.Text.*)
+        new TypePair(
+            "Microsoft.UI.Text.ITextDocument",
+            "Microsoft.UI.Text.ITextDocument"),
+        new TypePair(
+            "Microsoft.UI.Text.RichEditTextDocument",
+            "Microsoft.UI.Text.RichEditTextDocument"),
+        new TypePair(
+            "Microsoft.UI.Text.ITextRange",
+            "Microsoft.UI.Text.ITextRange"),
+        new TypePair(
+            "Microsoft.UI.Text.ITextSelection",
+            "Microsoft.UI.Text.ITextSelection"),
+        new TypePair(
+            "Microsoft.UI.Text.ITextCharacterFormat",
+            "Microsoft.UI.Text.ITextCharacterFormat"),
+        new TypePair(
+            "Microsoft.UI.Text.ITextParagraphFormat",
+            "Microsoft.UI.Text.ITextParagraphFormat"),
     };
 }
 
