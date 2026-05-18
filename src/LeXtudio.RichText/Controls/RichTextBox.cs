@@ -25,17 +25,10 @@ public sealed class RichTextBox : ContentControl
             new PropertyMetadata(false, OnIsReadOnlyChanged));
 
     private readonly RichTextBlock _renderer = new();
-    private readonly TextSelection _selection;
     private FlowDocument? _attachedDocument;
 
     public RichTextBox()
     {
-        _selection = new TextSelection(
-            () => _renderer.SelectionStart,
-            () => _renderer.SelectionEnd,
-            () => _renderer.SelectedText,
-            (start, end) => _renderer.Select(start, end));
-
         Document = new FlowDocument();
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Stretch;
@@ -61,7 +54,7 @@ public sealed class RichTextBox : ContentControl
 
     public string SelectedText => _renderer.SelectedText;
 
-    public TextSelection Selection => _selection;
+    public TextSelection Selection => throw new NotSupportedException("RichTextBox.Selection depends on the WPF TextEditor/TextSelection bridge, which is not enabled in the Phase 0 render host.");
 
     public event RoutedEventHandler? SelectionChanged;
 
@@ -94,12 +87,16 @@ public sealed class RichTextBox : ContentControl
         => _renderer.SelectAll();
 
     public void Select(TextPointer start, TextPointer end)
-        => _renderer.Select(start, end);
+    {
+        _renderer.Select(start, end);
+    }
 
     public void CopySelectionToClipboard()
         => _renderer.CopySelectionToClipboard();
 
     private void OnRendererSelectionChanged(object sender, RoutedEventArgs e)
-        => SelectionChanged?.Invoke(this, e);
+    {
+        SelectionChanged?.Invoke(this, e);
+    }
 }
 #endif

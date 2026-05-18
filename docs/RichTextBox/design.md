@@ -198,3 +198,20 @@ Porting rule for this slice:
 - The result preserves WPF editing semantics rather than reinventing them.
 - The system remains maintainable with future upstream WPF source updates.
 
+## Work Session Log
+
+This section and session*.md files are used to record implementation sessions for the Uno-side
+`RichTextBox` port. Keep each entry focused on what changed, what was verified,
+what remains blocked, and the next recommended slice.
+
+- [Session 1](session1.md): Phase 0 feature switch and baseline validation.
+- [Session 2](session2.md): WindowsShims shell test inventory; blocked on a
+  dispatcher-backed test host.
+- [Session 3](session3.md): Uno runtime test harness; WindowsShims shell tests
+  pass inside the Uno app process.
+- [Session 4](session4.md): `LeXtudio.UI.Xaml.Controls.RichTextBox` tests moved
+  to runtime harness with skip-safe plain `dotnet test` behavior.
+- [Session 5](session5.md): Added document replacement test for
+  `TextLayoutHost` detach/attach behavior in Phase 0 host.
+- [Session 6](session6.md): Added mutation-after-assignment selection coherence
+  runtime test for `RichTextBox`.
