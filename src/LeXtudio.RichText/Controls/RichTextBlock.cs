@@ -119,6 +119,7 @@ public class RichTextBlock : Panel
     private bool _isPointerDown;
     private bool _hasKeyboardFocus;
     private double? _preferredCaretX;
+    private double _lastConsumedContentHeight;
     private readonly ObservableCollection<TextHighlighter> _textHighlighters = new();
 
     public RichTextBlock()
@@ -268,7 +269,7 @@ public class RichTextBlock : Panel
         set => SetValue(ForegroundProperty, value);
     }
 
-    public bool HasOverflowContent => false;
+    public bool HasOverflowContent => (bool)GetValue(HasOverflowContentProperty);
 
     public TextAlignment HorizontalTextAlignment
     {
@@ -294,7 +295,7 @@ public class RichTextBlock : Panel
         set => SetValue(IsTextSelectionEnabledProperty, value);
     }
 
-    public bool IsTextTrimmed => false;
+    public bool IsTextTrimmed => (bool)GetValue(IsTextTrimmedProperty);
 
     public double LineHeight
     {
@@ -528,7 +529,10 @@ public class RichTextBlock : Panel
         }
         _totalHeight = totalHeight;
 
-        var desired = new Size(Math.Min(maxLineWidth, availableSize.Width), _totalHeight);
+        var desiredHeight = OverflowContentTarget is not null && !double.IsPositiveInfinity(availableSize.Height)
+            ? Math.Min(_totalHeight, availableSize.Height)
+            : _totalHeight;
+        var desired = new Size(Math.Min(maxLineWidth, availableSize.Width), desiredHeight);
         _canvas.Measure(desired);
         return desired;
     }
@@ -536,12 +540,20 @@ public class RichTextBlock : Panel
     protected override Size ArrangeOverride(Size finalSize)
     {
         DiagLog($"ArrangeOverride enter finalSize={finalSize.Width:F1}x{finalSize.Height:F1} segs={_preparedSegments.Length} foreground={Foreground}");
-        _totalHeight = RenderContent(_canvas, finalSize, verticalOffset: 0, recordHitTest: true);
+        Clip = new RectangleGeometry { Rect = new Rect(0, 0, finalSize.Width, finalSize.Height) };
+        var renderResult = RenderContent(
+            _canvas,
+            finalSize,
+            verticalOffset: 0,
+            recordHitTest: true,
+            requireWholeLineVisibility: OverflowContentTarget is not null);
+        _totalHeight = renderResult.TotalHeight;
+        _lastConsumedContentHeight = renderResult.ConsumedHeight;
         _focusSink.Arrange(new Rect(0, 0, 0, 0));
         _canvas.Width = finalSize.Width;
-        _canvas.Height = Math.Max(finalSize.Height, _totalHeight);
-        _canvas.Arrange(new Rect(0, 0, finalSize.Width, Math.Max(finalSize.Height, _totalHeight)));
-        SetValue(HasOverflowContentProperty, _totalHeight > finalSize.Height);
+        _canvas.Height = finalSize.Height;
+        _canvas.Arrange(new Rect(0, 0, finalSize.Width, finalSize.Height));
+        SetValue(HasOverflowContentProperty, _totalHeight > _lastConsumedContentHeight);
         OverflowContentTarget?.InvalidateMeasure();
         OverflowContentTarget?.InvalidateArrange();
         var firstTb = _canvas.Children.OfType<Microsoft.UI.Xaml.Controls.TextBlock>().FirstOrDefault();
@@ -554,20 +566,27 @@ public class RichTextBlock : Panel
         if (_preparedSegments.Length == 0 || _flatItems is null)
             Measure(new Size(finalSize.Width, double.PositiveInfinity));
 
-        var offset = finalSize.Height;
+        var offset = _lastConsumedContentHeight;
         var current = OverflowContentTarget;
         while (current is not null && !ReferenceEquals(current, overflow))
         {
-            offset += current.LastViewportHeight;
+            offset = current.LastConsumedContentHeight > offset
+                ? current.LastConsumedContentHeight
+                : offset + current.LastViewportHeight;
             current = current.OverflowContentTarget;
         }
 
-        var totalHeight = RenderContent(canvas, finalSize, offset, recordHitTest: false);
-        overflow.SetOverflowState(totalHeight > offset + finalSize.Height, false);
-        return totalHeight;
+        var renderResult = RenderContent(
+            canvas,
+            finalSize,
+            offset,
+            recordHitTest: false,
+            requireWholeLineVisibility: true);
+        overflow.SetOverflowState(renderResult.ConsumedHeight, renderResult.TotalHeight > renderResult.ConsumedHeight, false);
+        return renderResult.TotalHeight;
     }
 
-    private double RenderContent(Canvas target, Size finalSize, double verticalOffset, bool recordHitTest)
+    private RenderResult RenderContent(Canvas target, Size finalSize, double verticalOffset, bool recordHitTest, bool requireWholeLineVisibility)
     {
         target.Children.Clear();
         if (recordHitTest)
@@ -579,11 +598,15 @@ public class RichTextBlock : Panel
         if (_preparedSegments.Length == 0 || _flatItems == null)
         {
             target.Measure(new Size(0, 0));
-            return 0;
+            return new RenderResult(0, verticalOffset);
         }
 
         double maxWidth = finalSize.Width > 0 ? finalSize.Width : 9999;
         double viewportHeight = finalSize.Height > 0 ? finalSize.Height : double.PositiveInfinity;
+        double viewportBottom = double.IsPositiveInfinity(viewportHeight)
+            ? double.PositiveInfinity
+            : verticalOffset + viewportHeight;
+        double consumedHeight = verticalOffset;
         double currentY = 0;
         var selMin = Math.Min(_selectionAnchor, _selectionFocus);
         var selMax = Math.Max(_selectionAnchor, _selectionFocus);
@@ -680,7 +703,9 @@ public class RichTextBlock : Panel
                 }
 
                 var visualY = currentY - verticalOffset;
-                var lineVisible = visualY + lineHeight >= 0 && visualY <= viewportHeight;
+                var lineTop = currentY;
+                var lineBottom = currentY + lineHeight;
+                var lineVisible = IsLineVisible(lineTop, lineBottom, lineHeight, verticalOffset, viewportBottom, viewportHeight, consumedHeight, requireWholeLineVisibility);
                 if (recordHitTest)
                 {
                     _placedLines.Add(BuildPlacedLine(lineFragments, visualY, lineHeight));
@@ -688,6 +713,7 @@ public class RichTextBlock : Panel
 
                 if (lineVisible)
                 {
+                    consumedHeight = Math.Max(consumedHeight, lineBottom);
                     foreach (var placed in lineFragments)
                     {
                         if (recordHitTest)
@@ -755,7 +781,40 @@ public class RichTextBlock : Panel
             });
         }
 
-        return currentY;
+        if (!requireWholeLineVisibility)
+        {
+            consumedHeight = Math.Min(currentY, viewportBottom);
+        }
+
+        return new RenderResult(currentY, consumedHeight);
+    }
+
+    private static bool IsLineVisible(
+        double lineTop,
+        double lineBottom,
+        double lineHeight,
+        double viewportTop,
+        double viewportBottom,
+        double viewportHeight,
+        double consumedHeight,
+        bool requireWholeLineVisibility)
+    {
+        if (!requireWholeLineVisibility)
+        {
+            var visualTop = lineTop - viewportTop;
+            return visualTop + lineHeight >= 0 && visualTop <= viewportHeight;
+        }
+
+        var startsInViewport = lineTop >= viewportTop - 0.5;
+        if (!startsInViewport)
+            return false;
+
+        if (lineBottom <= viewportBottom + 0.5)
+            return true;
+
+        return consumedHeight <= viewportTop + 0.5
+            && lineTop <= viewportBottom + 0.5
+            && lineHeight > viewportHeight + 0.5;
     }
 
     private void DrawDecorations(Canvas target, TextDecorations decorations, Brush foreground, double x, double y, double width, double lineHeight)
@@ -1519,6 +1578,8 @@ public class RichTextBlock : Panel
         int CharStart, int CharEnd, string Text);
 
     private record PlacedLine(double StartX, double EndX, double Y, double Height, int StartOffset, int EndOffset);
+
+    private readonly record struct RenderResult(double TotalHeight, double ConsumedHeight);
 
     // ── Focus sink for keyboard events ────────────────────────────────
 

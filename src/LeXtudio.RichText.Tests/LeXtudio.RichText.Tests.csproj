@@ -37,6 +37,7 @@
     <Compile Include="Documents\InlineTests.cs" />
     <Compile Include="Documents\RichEditTextDocumentTests.cs" />
     <Compile Include="Controls\InlineCodeRenderingTests.cs" />
+    <Compile Include="Controls\OverflowLayoutTests.cs" />
     <Compile Include="Controls\RichTextBoxTests.cs" />
     <Compile Include="Controls\SelectionGeometryTests.cs" />
   </ItemGroup>

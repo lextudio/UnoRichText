@@ -51,16 +51,19 @@ internal static class SampleDiagnostics
     private static string? FindSampleExecutable()
     {
         var testDir = Path.GetDirectoryName(typeof(SampleDiagnostics).Assembly.Location)!;
-        var sampleName = "LeXtudio.RichText.Sample.exe";
+        var sampleNames = new[] { "LeXtudio.RichText.Sample.exe", "LeXtudio.RichText.Sample" };
 
         var dir = new DirectoryInfo(testDir);
         while (dir != null)
         {
-            var candidate = Path.Combine(dir.FullName, "LeXtudio.RichText.Sample", "bin", "Debug", "net10.0-desktop", sampleName);
-            if (File.Exists(candidate)) return candidate;
+            foreach (var sampleName in sampleNames)
+            {
+                var candidate = Path.Combine(dir.FullName, "LeXtudio.RichText.Sample", "bin", "Debug", "net10.0-desktop", sampleName);
+                if (File.Exists(candidate)) return candidate;
 
-            candidate = Path.Combine(dir.FullName, "LeXtudio.RichText.Sample", "bin", "Release", "net10.0-desktop", sampleName);
-            if (File.Exists(candidate)) return candidate;
+                candidate = Path.Combine(dir.FullName, "LeXtudio.RichText.Sample", "bin", "Release", "net10.0-desktop", sampleName);
+                if (File.Exists(candidate)) return candidate;
+            }
 
             dir = dir.Parent;
         }

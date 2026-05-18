@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Windows.Foundation;
 using Windows.UI;
+using LeXtudioOverflow = LeXtudio.UI.Xaml.Controls.RichTextBlockOverflow;
 using LeXtudioRTB = LeXtudio.UI.Xaml.Controls.RichTextBlock;
 
 namespace LeXtudio.RichText.Sample;
@@ -93,6 +94,19 @@ public sealed class DiagPage : Page
             : $"SELECTION: FAIL — {selectionMessage}");
         Console.Out.Flush();
 
+        // ── Overflow line-boundary test ──────────────────────────────────
+        var overflowPass = CheckOverflowLineBoundaries(out var overflowMessage);
+        Console.WriteLine(overflowPass
+            ? $"OVERFLOW: PASS — {overflowMessage}"
+            : $"OVERFLOW: FAIL — {overflowMessage}");
+        Console.Out.Flush();
+
+        var galleryOverflowPass = CheckGalleryOverflowLayout(out var galleryOverflowMessage);
+        Console.WriteLine(galleryOverflowPass
+            ? $"GALLERY_OVERFLOW: PASS — {galleryOverflowMessage}"
+            : $"GALLERY_OVERFLOW: FAIL — {galleryOverflowMessage}");
+        Console.Out.Flush();
+
         // ── Document model tests ────────────────────────────────────────
         var documentsPass = CheckDocumentModel(out var documentsMessage);
         Console.WriteLine(documentsPass
@@ -100,7 +114,7 @@ public sealed class DiagPage : Page
             : $"DOCUMENTS: FAIL — {documentsMessage}");
         Console.Out.Flush();
 
-        var allPass = hasInlineFragment && multiLinePass && selectionPass && documentsPass;
+        var allPass = hasInlineFragment && multiLinePass && selectionPass && overflowPass && galleryOverflowPass && documentsPass;
         Console.WriteLine(allPass ? "RESULT: PASS" : "RESULT: FAIL");
         Console.Out.Flush();
 
@@ -242,6 +256,94 @@ public sealed class DiagPage : Page
         message =
             $"headingSelection={headingSelection.Height:F1}, headingText={headingText.DesiredSize.Height:F1}, bodySelection={bodySelection.Height:F1}, bodyText={bodyText.DesiredSize.Height:F1}, baseLineHeight={rtb.LineHeight:F1}";
         return headingPass && bodyPass;
+    }
+
+    private static bool CheckOverflowLineBoundaries(out string message)
+    {
+        var overflow = new LeXtudioOverflow();
+        var rtb = new LeXtudioRTB
+        {
+            FontSize = 10,
+            LineHeight = 20,
+            TextWrapping = TextWrapping.NoWrap,
+            OverflowContentTarget = overflow
+        };
+
+        rtb.Blocks.Add(new Paragraph(new Run("Line 1\nLine 2\nLine 3\nLine 4\nLine 5")));
+
+        var region = new Size(200, 55);
+        rtb.Measure(new Size(region.Width, double.PositiveInfinity));
+        ArrangeOverrideForDiagnostics(rtb, region);
+        overflow.Measure(region);
+        ArrangeOverrideForDiagnostics(overflow, region);
+
+        var sourceText = GetRenderedText(rtb);
+        var overflowText = GetRenderedText(overflow);
+        var overflowTops = overflowText.Select(Canvas.GetTop).OrderBy(v => v).ToArray();
+
+        var sourceHasOnlyFullLines = sourceText.Select(t => t.Text).SequenceEqual(new[] { "Line 1", "Line 2" });
+        var overflowStartsOnWholeLine = overflowText.Select(t => t.Text).SequenceEqual(new[] { "Line 3", "Line 4" });
+        var noNegativeTop = overflowTops.Length > 0 && overflowTops.All(top => top >= -0.5);
+        var noBottomCut = overflowTops.SequenceEqual(new[] { 0d, 20d });
+
+        message =
+            $"source=[{string.Join(", ", sourceText.Select(t => t.Text))}], overflow=[{string.Join(", ", overflowText.Select(t => $"{t.Text}@{Canvas.GetTop(t):F1}"))}]";
+        return sourceHasOnlyFullLines && overflowStartsOnWholeLine && noNegativeTop && noBottomCut;
+    }
+
+    private static bool CheckGalleryOverflowLayout(out string message)
+    {
+        var firstOverflow = new LeXtudioOverflow { Margin = new Thickness(12, 0, 12, 0) };
+        var secondOverflow = new LeXtudioOverflow { Margin = new Thickness(12, 0, 12, 0) };
+        var source = new LeXtudioRTB
+        {
+            Margin = new Thickness(12, 0, 12, 0),
+            TextAlignment = TextAlignment.Justify,
+            OverflowContentTarget = firstOverflow
+        };
+        firstOverflow.OverflowContentTarget = secondOverflow;
+
+        source.Blocks.Add(new Paragraph(new Run("Linked text containers allow text which does not fit in one element to overflow into a different element on the page. Creative use of linked text containers enables basic multicolumn support and other advanced page layouts.")));
+        source.Blocks.Add(new Paragraph(new Run("Duis sed nulla metus, id hendrerit velit. Curabitur dolor purus, bibendum eu cursus lacinia, interdum vel augue. Aenean euismod eros et sapien vehicula dictum. Duis ullamcorper, turpis nec feugiat tincidunt, dui erat luctus risus, aliquam accumsan lacus est vel quam. Nunc lacus massa, varius eget accumsan id, congue sed orci. Duis dignissim hendrerit egestas. Proin ut turpis magna, sit amet porta erat. Nunc semper metus nec magna imperdiet nec vestibulum dui fringilla. Sed sed ante libero, nec porttitor mi. Ut luctus, neque vitae placerat egestas, urna leo auctor magna, sit amet ultricies ipsum felis quis sapien. Proin eleifend varius dui, at vestibulum nunc consectetur nec. Mauris nulla elit, ultrices a sodales non, aliquam ac est. Quisque sit amet risus nulla. Quisque vestibulum posuere velit, vitae vestibulum eros scelerisque sit amet. In in risus est, at laoreet dolor. Nullam aliquet pellentesque convallis. Ut vel tincidunt nulla. Mauris auctor tincidunt auctor.")));
+
+        var grid = new Grid { Height = 300 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        Grid.SetColumn(source, 0);
+        Grid.SetColumn(firstOverflow, 1);
+        Grid.SetColumn(secondOverflow, 2);
+        grid.Children.Add(source);
+        grid.Children.Add(firstOverflow);
+        grid.Children.Add(secondOverflow);
+
+        grid.Measure(new Size(900, 300));
+        grid.Arrange(new Rect(0, 0, 900, 300));
+
+        var sourceCount = GetRenderedText(source).Length;
+        var firstCount = GetRenderedText(firstOverflow).Length;
+        var secondCount = GetRenderedText(secondOverflow).Length;
+        message = $"source={sourceCount}, firstOverflow={firstCount}, secondOverflow={secondCount}, desiredHeight={source.DesiredSize.Height:F1}, hasOverflow={source.HasOverflowContent}";
+        return source.DesiredSize.Height <= 300.5
+            && source.HasOverflowContent
+            && sourceCount > 0
+            && firstCount > 0;
+    }
+
+    private static void ArrangeOverrideForDiagnostics(object control, Size finalSize)
+    {
+        control.GetType()
+            .GetMethod("ArrangeOverride", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .Invoke(control, new object[] { finalSize });
+    }
+
+    private static TextBlock[] GetRenderedText(object control)
+    {
+        var canvas = (Canvas)control.GetType()
+            .GetField("_canvas", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(control)!;
+
+        return canvas.Children.OfType<TextBlock>().ToArray();
     }
 
     private static bool CheckDocumentModel(out string message)

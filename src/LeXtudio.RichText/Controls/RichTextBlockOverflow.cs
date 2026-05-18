@@ -84,6 +84,7 @@ public partial class RichTextBlockOverflow : Panel
     private RichTextBlock? _source;
 
     internal double LastViewportHeight { get; private set; }
+    internal double LastConsumedContentHeight { get; private set; }
 
     public RichTextBlockOverflow()
     {
@@ -127,6 +128,7 @@ public partial class RichTextBlockOverflow : Panel
     protected override Size ArrangeOverride(Size finalSize)
     {
         LastViewportHeight = finalSize.Height;
+        LastConsumedContentHeight = 0;
         _canvas.Children.Clear();
         Clip = new RectangleGeometry { Rect = new Rect(0, 0, finalSize.Width, finalSize.Height) };
 
@@ -143,8 +145,9 @@ public partial class RichTextBlockOverflow : Panel
         return finalSize;
     }
 
-    internal void SetOverflowState(bool hasOverflowContent, bool isTextTrimmed)
+    internal void SetOverflowState(double consumedContentHeight, bool hasOverflowContent, bool isTextTrimmed)
     {
+        LastConsumedContentHeight = consumedContentHeight;
         SetValue(HasOverflowContentProperty, hasOverflowContent);
         if (IsTextTrimmed != isTextTrimmed)
         {
