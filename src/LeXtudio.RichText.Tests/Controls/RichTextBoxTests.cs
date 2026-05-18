@@ -96,6 +96,7 @@ public sealed class RichTextBoxTests
             Assert.That(control.SelectionStart.Offset, Is.LessThanOrEqualTo(control.SelectionEnd.Offset));
             Assert.That(control.SelectedText, Does.Contain("Alpha"));
             Assert.That(control.SelectedText, Does.Contain("Beta"));
+            Assert.That(control.SelectedText, Does.Contain("\n"));
         });
     }
 }

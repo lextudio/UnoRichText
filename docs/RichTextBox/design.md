@@ -217,3 +217,5 @@ what remains blocked, and the next recommended slice.
   runtime test for `RichTextBox`.
 - [Session 7](session7.md): Fixed pre-layout selection snapshot so `SelectAll()`
   after document mutation returns expected selected text.
+- [Session 8](session8.md): Added newline-preserving cross-paragraph selection
+  assertion and documented `TextPointer.Offset` blocker for range tests.
