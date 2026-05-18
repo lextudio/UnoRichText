@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="../../TextCore.Uno/src/LeXtudio.TextBox/LeXtudio.TextBox.csproj" />
+  <Project Path="../../WindowsShims/src/LeXtudio.Windows/LeXtudio.Windows.csproj" />
+  <Project Path="LeXtudio.RichText.Sample/LeXtudio.RichText.Sample.csproj" />
+  <Project Path="LeXtudio.RichText.Tests/LeXtudio.RichText.Tests.csproj" />
+  <Project Path="LeXtudio.RichText/LeXtudio.RichText.csproj" />
+</Solution>
