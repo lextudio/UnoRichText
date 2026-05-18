@@ -99,5 +99,6 @@ public sealed class RichTextBoxTests
             Assert.That(control.SelectedText, Does.Contain("\n"));
         });
     }
+
 }
 #endif

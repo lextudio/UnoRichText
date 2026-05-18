@@ -1314,27 +1314,25 @@ public class RichTextBlock : Panel
         ProtectedCursor = IsTextSelectionEnabled ? TextSelectionCursor : null;
     }
 
+    // Associates character offsets with TextPointer instances for RichTextBlock hit-testing.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TextPointer, PointerOffsetRecord> _pointerOffsets = new();
+    private TextContainer? _pointerContainer;
+
+    private sealed class PointerOffsetRecord { public int Offset; }
+
     private TextPointer CreateTextPointer(int offset)
     {
-        var pointer = new TextPointer
-        {
-            Parent = this,
-            ParentType = GetType(),
-        };
-
-        pointer.SetValue(pointerOffsetProperty, Math.Clamp(offset, 0, TextLength));
-        return pointer;
+        _pointerContainer ??= new TextContainer(this, false);
+        var ptr = _pointerContainer.Start;
+        var clamped = Math.Clamp(offset, 0, TextLength);
+        _pointerOffsets.AddOrUpdate(ptr, new PointerOffsetRecord { Offset = clamped });
+        return ptr;
     }
 
     private int GetOffset(TextPointer pointer)
     {
-        if (pointer.Parent is RichTextBlock block && ReferenceEquals(block, this))
-        {
-            var value = pointer.GetValue(pointerOffsetProperty);
-            if (value is int offset)
-                return offset;
-        }
-
+        if (_pointerOffsets.TryGetValue(pointer, out var record))
+            return Math.Clamp(record.Offset, 0, TextLength);
         return 0;
     }
 
@@ -1622,9 +1620,6 @@ public class RichTextBlock : Panel
             Opacity = 0;
         }
     }
-
-    private static readonly DependencyProperty pointerOffsetProperty =
-        DependencyProperty.RegisterAttached("PointerOffset", typeof(int), typeof(RichTextBlock), new PropertyMetadata(0));
 
     private static void OnLayoutPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {

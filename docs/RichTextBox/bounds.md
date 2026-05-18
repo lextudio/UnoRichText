@@ -112,6 +112,104 @@ Use this order:
 This keeps the compatibility layer thin and avoids maintaining parallel
 implementations of the same primitive type family.
 
+## WPF Source Triage Workflow
+
+When evaluating a WPF source file for inclusion in `WindowsShims`, apply the
+following four-step triage. Use `TextPointer` as the reference example of a
+file that cannot be linked and must follow steps 3–4.
+
+### Step 1 — Classify each member as WPF-tight or platform-neutral
+
+Read through the WPF source file and mark each member:
+
+**WPF-tight** — depends on internal WPF infrastructure that does not exist and
+cannot be shimmed cheaply:
+
+- `TextTree`, `TextTreeNode`, `TextTreeTextNode`, `SplayTreeNode`
+- `TextContainer` (WPF internal version, not the shim)
+- `Win32` / `HwndSource` / `PresentationSource` dependencies
+- Dispatcher-thread checks using WPF-specific threading primitives
+- `Adorner`, `AdornerLayer`, `Visual`, `DrawingContext` render internals
+
+These members **must** be extracted into a `.wpf.cs` companion file so they
+stay with the WPF ext tree and do not compile in the shim project.
+
+**Platform-neutral** — depends only on public `System.Windows.*` APIs and
+interfaces (`ITextPointer`, `LogicalDirection`, `DependencyProperty`, etc.) or
+pure C# logic with no platform rendering coupling. These can remain in the
+original `.cs` file in the WPF ext tree and compile directly in `WindowsShims`
+if all their dependencies are satisfied.
+
+### Step 2 — Decide whether the file can be linked
+
+A file is **directly linkable** (status `linked-upstream`) when:
+
+- All its dependencies are already present in the shim project, AND
+- The WPF-tight surface (if any) is small enough to stub with a `#if` guard or
+  a thin bridge rather than a full separate file.
+
+A file is **not linkable** when:
+
+- It is fundamentally coupled to `TextTree`/`TextContainer` internals (like
+  `TextPointer.cs` — 4 376 lines, 5 critical internal type dependencies), OR
+- Satisfying its dependencies would require porting hundreds of additional
+  lines of tree-management infrastructure.
+
+For non-linkable files, proceed to steps 3 and 4.
+
+### Step 3 — Create the `.uno.cs` companion in `WindowsShims`
+
+In `WindowsShims/src/LeXtudio.Windows/` at the matching path, create
+`<TypeName>.uno.cs` as a `partial class`. This file:
+
+- Provides only the members that are **Uno/WinUI-specific** or that replace
+  WPF-tight members stripped from the main class.
+- Registers Uno/WinUI `DependencyProperty` objects (using
+  `Microsoft.UI.Xaml.DependencyProperty.Register`).
+- Implements WinUI interfaces such as `Microsoft.UI.Xaml.Input.IInputElement`
+  where the WPF version implements the WPF equivalent.
+- Bridges renderer callbacks (`TextLayoutHost`, `RichTextBlock`) that have no
+  WPF equivalent.
+- **Does not** duplicate logic that belongs in the neutral `.cs` file.
+
+Pattern already established:
+
+- `TextElement.cs` (WPF ext, neutral logic) + `TextElement.uno.cs` (Uno DPs,
+  WinUI interface impl)
+- `Run.cs` (WPF ext) + `Run.uno.cs` (implicit-run helpers, shim-specific
+  members)
+- `Paragraph.cs` (WPF ext) + `Paragraph.uno.cs`
+
+### Step 4 — Write the neutral `.cs` in `WindowsShims/src`
+
+For types that cannot link the WPF source at all (status `local-shell`), write
+a standalone `.cs` in `WindowsShims/src/LeXtudio.Windows/` that:
+
+- Implements the **public and internal API surface** callers actually need.
+- Uses the same namespace and type name as the WPF original.
+- Stores state explicitly (e.g. `_explicitOffset` in `TextPointer`) instead of
+  computing it from a tree walk.
+- Is kept as a `sealed` or `partial` class matching the WPF declaration.
+- Avoids duplicating members that belong in `.uno.cs`.
+
+Then compile **both** `<TypeName>.cs` and `<TypeName>.uno.cs` together in the
+`LeXtudio.Windows` project. The result is a single compiled type whose neutral
+logic lives in the `.cs` file and whose Uno-specific surface lives in
+`.uno.cs`.
+
+### Reference: TextPointer triage outcome
+
+| Criterion | Outcome |
+| --------- | ------- |
+| WPF source linkable? | No — depends on `TextTree`/`SplayTreeNode` chain (~6 400 lines) |
+| WPF-tight members moved to `.wpf.cs`? | Not applicable (file not linked) |
+| Neutral `.cs` written in `WindowsShims`? | Yes — `TextPointer.cs` (~415 lines), explicit-offset model |
+| Uno companion `.uno.cs` needed? | No — no Uno DPs or WinUI interfaces on `TextPointer` itself |
+| Status | `local-shell` |
+
+`GetPositionAtOffset`, `GetOffsetToPosition`, and `GetOffset` fallback logic
+were added to the shim to match WPF semantics without the tree infrastructure.
+
 ## Immediate Tracking Focus
 
 The next catalog pass should focus on the minimum RichTextBox editing spine:

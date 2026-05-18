@@ -219,3 +219,5 @@ what remains blocked, and the next recommended slice.
   after document mutation returns expected selected text.
 - [Session 8](session8.md): Added newline-preserving cross-paragraph selection
   assertion and documented `TextPointer.Offset` blocker for range tests.
+- [Session 9](session9.md): Investigated pointer-range selection; documented
+  current `Select(start,end)` blocker and required next dependency slice.
