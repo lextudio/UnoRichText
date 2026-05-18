@@ -9,7 +9,7 @@
     <PackageVersion Include="LeXtudio.Windows" Version="0.6.13" />
     <PackageVersion Include="LeXtudio.TextBox" Version="0.2.11" />
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.92.0" />
-    <PackageVersion Include="LeXtudio.UnoPropertyGrid" Version="0.3.2" />
+    <PackageVersion Include="LeXtudio.UnoPropertyGrid" Version="0.3.4" />
     <PackageVersion Include="CommunityToolkit.WinUI.Controls.Sizers" Version="8.2.251219" />
   </ItemGroup>
 </Project>
