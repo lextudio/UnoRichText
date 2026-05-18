@@ -177,6 +177,7 @@ public partial class RichEditBox : ContentControl
     private readonly LeXtudio.UI.Controls.TextBox _editorHost;
     private readonly RichTextBlock _renderOverlay;
     private bool _syncingFromDocument;
+    private bool _editorHostFocused;
     private static readonly string s_diagnosticLogPath = Path.Combine(Path.GetTempPath(), "LeXtudio.RichText.RichEditBox.log");
 
     public static bool DiagnosticsEnabled { get; set; }
@@ -209,6 +210,10 @@ public partial class RichEditBox : ContentControl
         _editorHost.SelectionChanged += OnEditorHostSelectionChanged;
         _editorHost.FormattingAcceleratorRequested += OnEditorHostFormattingAcceleratorRequested;
         _editorHost.EditingCommandRequested += OnEditorHostEditingCommandRequested;
+
+        // Track host focus so the overlay caret shows/hides correctly.
+        _editorHost.GotFocus += (_, _) => { _editorHostFocused = true; SyncOverlayCaret(); };
+        _editorHost.LostFocus += (_, _) => { _editorHostFocused = false; SyncOverlayCaret(); };
 
         // Document → editor (when consumer calls Document.SetText programmatically)
         Document.TextChanged += OnDocumentTextChanged;
@@ -701,7 +706,17 @@ public partial class RichEditBox : ContentControl
         int length = _editorHost.SelectionLength;
         LogDiagnostic($"EditorHostSelectionChanged selection={start}+{length} runs={DescribeRuns()}");
         Document.Selection.SetRange(start, start + length);
+        SyncOverlayCaret();
         RaiseSelectionChanged(e);
+    }
+
+    private void SyncOverlayCaret()
+    {
+        if (_renderOverlay.Visibility != Visibility.Visible)
+            return;
+        int start = _editorHost.SelectionStart;
+        int length = _editorHost.SelectionLength;
+        _renderOverlay.SetExternalCaret(start, start + length, _editorHostFocused);
     }
 
     // ---- Methods (parity-shaped) ------------------------------------------------
@@ -747,12 +762,13 @@ public partial class RichEditBox : ContentControl
             .OrderBy(run => run.Start)
             .ToList();
 
-        LogDiagnostic($"RefreshOverlay text={DescribeText(text)} visibleRuns={runs.Count} allRuns={DescribeRuns()} hostOpacity={_editorHost.Opacity}");
+        LogDiagnostic($"RefreshOverlay text={DescribeText(text)} visibleRuns={runs.Count} allRuns={DescribeRuns()} overlayVisible={_renderOverlay.Visibility == Visibility.Visible}");
         _renderOverlay.Blocks.Clear();
 
         if (string.IsNullOrEmpty(text) || runs.Count == 0)
         {
             _renderOverlay.Visibility = Visibility.Collapsed;
+            _renderOverlay.SetExternalCaret(-1, -1, false);
             _editorHost.Opacity = 1;
             LogDiagnostic("RefreshOverlay collapsed");
             return;
@@ -776,13 +792,22 @@ public partial class RichEditBox : ContentControl
             paragraph.Inlines.Add(new FlowDocuments.Run(text[position..]));
 
         _renderOverlay.Blocks.Add(paragraph);
+
+        if (_renderOverlay.Visibility != Visibility.Visible)
+            LogOverlayAlignment();
+
         _renderOverlay.Visibility = Visibility.Visible;
 
         // The overlay paints formatted text while the real text host keeps caret,
-        // selection, IME, and keyboard behavior alive underneath. Keep the host
-        // faintly visible so caret/selection remain usable while rich runs lead.
-        _editorHost.Opacity = 0.35;
-        LogDiagnostic($"RefreshOverlay visible blocks={_renderOverlay.Blocks.Count} hostOpacity={_editorHost.Opacity}");
+        // selection, IME, and keyboard behavior alive underneath. The host is made
+        // fully invisible so its unformatted text cannot bleed through the overlay —
+        // on macOS the Skia font metrics cause a pixel offset between the two text
+        // layers which produces a visible shadow at any non-zero opacity. Instead
+        // the overlay draws its own caret and selection highlight via SetExternalCaret,
+        // driven by the host's SelectionChanged and GotFocus/LostFocus events.
+        _editorHost.Opacity = 0;
+        SyncOverlayCaret();
+        LogDiagnostic($"RefreshOverlay visible blocks={_renderOverlay.Blocks.Count}");
     }
 
     private static bool IsVisibleFormat(LeXtudio.UI.Text.TextCharacterFormat format)
@@ -810,6 +835,28 @@ public partial class RichEditBox : ContentControl
             run.Foreground = new SolidColorBrush(format.ForegroundColor);
 
         return inline;
+    }
+
+    private void LogOverlayAlignment()
+    {
+        if (!DiagnosticsEnabled)
+            return;
+
+        try
+        {
+            var innerPad = _editorHost.InnerTextBox.Padding;
+            var overlayPad = _renderOverlay.Padding;
+            LogDiagnostic(
+                $"OverlayAlignment " +
+                $"innerPad=({innerPad.Left},{innerPad.Top},{innerPad.Right},{innerPad.Bottom}) " +
+                $"overlayPad=({overlayPad.Left},{overlayPad.Top},{overlayPad.Right},{overlayPad.Bottom}) " +
+                $"innerSize=({_editorHost.InnerTextBox.ActualWidth:F1}x{_editorHost.InnerTextBox.ActualHeight:F1}) " +
+                $"overlaySize=({_renderOverlay.ActualWidth:F1}x{_renderOverlay.ActualHeight:F1})");
+        }
+        catch (Exception ex)
+        {
+            LogDiagnostic($"OverlayAlignment failed: {ex.Message}");
+        }
     }
 
     private static void LogDiagnostic(string message)

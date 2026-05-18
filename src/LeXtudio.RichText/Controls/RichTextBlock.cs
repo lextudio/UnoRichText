@@ -432,6 +432,19 @@ public class RichTextBlock : Panel
         SetSelection(GetOffset(start), GetOffset(end));
     }
 
+    /// <summary>
+    /// Drives caret/selection display from an external editor host (e.g. RichEditBox's _editorHost).
+    /// Pass anchor == focus for a caret-only position, different values for a selection range.
+    /// Pass hasFocus=false to hide the caret when the host loses keyboard focus.
+    /// </summary>
+    internal void SetExternalCaret(int anchor, int focus, bool hasFocus)
+    {
+        _hasKeyboardFocus = hasFocus;
+        _selectionAnchor = anchor;
+        _selectionFocus = focus;
+        InvalidateArrange();
+    }
+
     // ── Layout ────────────────────────────────────────────────────────
 
     protected override Size MeasureOverride(Size availableSize)
