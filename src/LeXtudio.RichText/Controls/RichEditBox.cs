@@ -223,6 +223,35 @@ public partial class RichEditBox : ContentControl
             }
         };
 
+        // Default flyouts mirror WinUI's RichEditBox: a CommandBarFlyout with
+        // Bold/Italic/Underline on the primary strip and Cut/Copy/Paste/Undo/
+        // Redo/Select All in the secondary list. Consumers can replace either
+        // DP if they want a custom menu. The same flyout is shown via right-
+        // click regardless of selection state — Bold/Italic/Underline and
+        // Paste stay available on an empty box, matching WinUI Gallery.
+        ContextFlyout = RichEditBoxCommandBarFlyoutFactory.Create(this);
+        SelectionFlyout = RichEditBoxCommandBarFlyoutFactory.Create(this);
+
+        // The platform TextBox installs its own default Paste/Select All
+        // ContextFlyout that the right-click gesture targets directly. We have
+        // to replace it on the inner control, not the shim, otherwise Uno's
+        // default wins and our richer flyout is never reached.
+        _editorHost.InnerTextBox.ContextFlyout = RichEditBoxCommandBarFlyoutFactory.Create(this);
+        _editorHost.InnerTextBox.SelectionFlyout = RichEditBoxCommandBarFlyoutFactory.Create(this);
+
+        // Preempt Uno's TextBox right-click logic by handling PointerPressed
+        // at the root pointer level. handledEventsToo=true catches the event
+        // even if a child already marked it handled. We mark Handled, run our
+        // own context-menu logic from a posted continuation (so the inner
+        // TextBox can still update caret position and selection first), and
+        // then sweep away any popups Uno may have opened in parallel.
+        _editorHost.InnerTextBox.AddHandler(
+            RightTappedEvent,
+            new RightTappedEventHandler(OnInnerTextBoxRightTapped),
+            handledEventsToo: true);
+
+        _editorHost.InnerTextBox.ContextRequested += OnInnerTextBoxContextRequested;
+
         // RichEditBox itself should fill whatever its parent gives it.
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Stretch;
@@ -318,6 +347,64 @@ public partial class RichEditBox : ContentControl
         format.Underline = format.Underline == Microsoft.UI.Text.UnderlineType.None
             ? Microsoft.UI.Text.UnderlineType.Single
             : Microsoft.UI.Text.UnderlineType.None;
+    }
+
+    public void ToggleSelectionBold()
+    {
+        if (IsReadOnly) return;
+        Document.Selection.CharacterFormat.Bold = Microsoft.UI.Text.FormatEffect.Toggle;
+    }
+
+    public void ToggleSelectionItalic()
+    {
+        if (IsReadOnly) return;
+        Document.Selection.CharacterFormat.Italic = Microsoft.UI.Text.FormatEffect.Toggle;
+    }
+
+    public void CopySelection()
+    {
+        if (Document.Selection.Length <= 0) return;
+        var text = _editorHost.SelectedText ?? string.Empty;
+        if (text.Length == 0) return;
+        var package = new global::Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(text);
+        global::Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+    }
+
+    public void CutSelection()
+    {
+        if (IsReadOnly || Document.Selection.Length <= 0) return;
+        CopySelection();
+        var start = Document.Selection.StartPosition;
+        var end = Document.Selection.EndPosition;
+        // Mutate through the host so the diff path produces one undo entry and
+        // selection collapses naturally where the cut happened.
+        _editorHost.ReplaceSelection(string.Empty);
+        Document.Selection.SetRange(start, start);
+        _ = end;
+    }
+
+    public void PasteFromClipboard()
+    {
+        if (IsReadOnly) return;
+        var view = global::Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+        if (view is null || !view.Contains(global::Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+        {
+            return;
+        }
+
+        string clipboardText;
+        try
+        {
+            clipboardText = view.GetTextAsync().AsTask().GetAwaiter().GetResult() ?? string.Empty;
+        }
+        catch
+        {
+            return;
+        }
+
+        if (clipboardText.Length == 0) return;
+        _editorHost.ReplaceSelection(clipboardText);
     }
 
     private void OnDocumentTextChanged(object? sender, System.EventArgs e)
@@ -420,6 +507,192 @@ public partial class RichEditBox : ContentControl
                 RaiseTextChanged(new RoutedEventArgs());
         }
         finally { _syncingFromDocument = false; }
+    }
+
+    private void OnInnerTextBoxContextRequested(UIElement sender, ContextRequestedEventArgs args)
+    {
+        try
+        {
+            File.AppendAllText(
+                Path.Combine(Path.GetTempPath(), "LeXtudio.RichText.Flyout.log"),
+                $"{System.DateTimeOffset.Now:O} ContextRequested sender={sender?.GetType().Name} alreadyHandled={args.Handled}{System.Environment.NewLine}");
+        }
+        catch { }
+
+        // Suppress Uno's built-in Paste/Select All menu and open ours instead,
+        // so the gesture (mouse, touch hold, Shift+F10, Apps key) lands on one
+        // and only one flyout.
+        var flyout = ContextFlyout;
+        if (flyout is null) return;
+
+        global::Windows.Foundation.Point position;
+        bool gotPosition = args.TryGetPosition(_editorHost.InnerTextBox, out position);
+
+        args.Handled = true;
+
+        try
+        {
+            var options = new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions
+            {
+                Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedLeft,
+                ShowMode = Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowMode.Standard,
+            };
+            if (gotPosition)
+                options.Position = position;
+            flyout.ShowAt(_editorHost.InnerTextBox, options);
+        }
+        catch (System.Exception ex)
+        {
+            try
+            {
+                File.AppendAllText(
+                    Path.Combine(Path.GetTempPath(), "LeXtudio.RichText.Flyout.log"),
+                    $"{System.DateTimeOffset.Now:O} ContextRequested-ShowAt-failed ex={ex.Message}{System.Environment.NewLine}");
+            }
+            catch { }
+        }
+    }
+
+    private void OnInnerTextBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        // Always log so we can confirm this gesture actually fires regardless
+        // of DiagnosticsEnabled — the flyout-render bug we are chasing here
+        // depends on knowing whether the event even reaches us.
+        try
+        {
+            File.AppendAllText(
+                Path.Combine(Path.GetTempPath(), "LeXtudio.RichText.Flyout.log"),
+                $"{System.DateTimeOffset.Now:O} RightTapped sender={sender?.GetType().Name} hasContextFlyout={ContextFlyout is not null} hostContextFlyout={_editorHost.InnerTextBox.ContextFlyout is not null}{System.Environment.NewLine}");
+        }
+        catch { }
+
+        // Mark handled so the platform TextBox doesn't show its own default
+        // Paste/Select All flyout on top of ours.
+        e.Handled = true;
+
+        var flyout = ContextFlyout ?? _editorHost.InnerTextBox.ContextFlyout;
+        if (flyout is null) return;
+
+        // Snapshot the popup set BEFORE we ShowAt. Anything already open is
+        // not ours and is presumed to be Uno's parallel default; we hide it
+        // shortly after our flyout opens. Anything that appears between the
+        // pre-snapshot and the post-snapshot is presumed to belong to our
+        // CommandBarFlyout (it may create multiple Popups for primary +
+        // overflow bands) and is left alone.
+        var xamlRoot = XamlRoot;
+        var preOpenPopups = new System.Collections.Generic.HashSet<Microsoft.UI.Xaml.Controls.Primitives.Popup>();
+        if (xamlRoot is not null)
+        {
+            foreach (var p in Microsoft.UI.Xaml.Media.VisualTreeHelper.GetOpenPopupsForXamlRoot(xamlRoot))
+                if (p is not null) preOpenPopups.Add(p);
+        }
+
+        try
+        {
+            // Target the RichEditBox itself (not the inner TextBox) so that
+            // CommandBarFlyout.Target == this RichEditBox. WinUI samples gate
+            // their "Add Share button" logic on `flyout.Target == myRichEditBox`,
+            // and pointing the flyout at the inner host would break that.
+            var position = e.GetPosition(this);
+            flyout.ShowAt(this, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions
+            {
+                Position = position,
+                Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedLeft,
+                ShowMode = Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowMode.Standard,
+            });
+        }
+        catch (System.Exception ex)
+        {
+            try
+            {
+                File.AppendAllText(
+                    Path.Combine(Path.GetTempPath(), "LeXtudio.RichText.Flyout.log"),
+                    $"{System.DateTimeOffset.Now:O} ShowAt-failed ex={ex.Message}{System.Environment.NewLine}");
+            }
+            catch { }
+        }
+
+        DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            try
+            {
+                if (xamlRoot is null) return;
+                int closed = 0;
+                int total = 0;
+                int ownCount = 0;
+                foreach (var popup in Microsoft.UI.Xaml.Media.VisualTreeHelper.GetOpenPopupsForXamlRoot(xamlRoot))
+                {
+                    if (popup is null) continue;
+                    total++;
+                    if (!preOpenPopups.Contains(popup)) { ownCount++; continue; }
+                    if (popup.Child is UIElement child)
+                    {
+                        child.Visibility = Visibility.Collapsed;
+                        child.IsHitTestVisible = false;
+                        if (child is FrameworkElement fe)
+                        {
+                            fe.Opacity = 0;
+                            fe.Height = 0;
+                            fe.Width = 0;
+                        }
+                    }
+                    closed++;
+                }
+                File.AppendAllText(
+                    Path.Combine(Path.GetTempPath(), "LeXtudio.RichText.Flyout.log"),
+                    $"{System.DateTimeOffset.Now:O} SweepOtherPopups total={total} own(new)={ownCount} hidden(pre-existing)={closed}{System.Environment.NewLine}");
+            }
+            catch (System.Exception ex)
+            {
+                try
+                {
+                    File.AppendAllText(
+                        Path.Combine(Path.GetTempPath(), "LeXtudio.RichText.Flyout.log"),
+                        $"{System.DateTimeOffset.Now:O} SweepOtherPopups-failed ex={ex.Message}{System.Environment.NewLine}");
+                }
+                catch { }
+            }
+        });
+    }
+
+    private static bool IsOwnPopup(Microsoft.UI.Xaml.Controls.Primitives.Popup popup)
+    {
+        var child = popup.Child;
+        if (child is null) return false;
+        // Our root StackPanel sits inside a FlyoutPresenter inside the Popup;
+        // walk a bounded depth of children/content looking for our sentinel
+        // Tag rather than reflecting on internal Popup.AssociatedFlyout.
+        return ContainsOwnSentinel(child, depth: 0);
+    }
+
+    private static bool ContainsOwnSentinel(DependencyObject element, int depth)
+    {
+        if (depth > 6) return false;
+        if (element is FrameworkElement fe
+            && fe.Tag is string tag
+            && tag == RichEditBoxCommandBarFlyoutFactory.OwnPopupSentinel)
+        {
+            return true;
+        }
+
+        if (element is ContentControl cc && cc.Content is DependencyObject inner)
+        {
+            if (ContainsOwnSentinel(inner, depth + 1)) return true;
+        }
+        if (element is Panel panel)
+        {
+            foreach (var child in panel.Children)
+            {
+                if (child is DependencyObject d && ContainsOwnSentinel(d, depth + 1)) return true;
+            }
+        }
+        int count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(element);
+        for (int i = 0; i < count; i++)
+        {
+            var vc = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(element, i);
+            if (ContainsOwnSentinel(vc, depth + 1)) return true;
+        }
+        return false;
     }
 
     private void OnEditorHostSelectionChanged(object sender, RoutedEventArgs e)

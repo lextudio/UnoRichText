@@ -207,7 +207,12 @@ Current checkout:
 
 ### Phase 6: WinUI API parity polish
 
-Status: started. Read-only behavior is wired: `IsReadOnly` now propagates to the editor host (gating typing, paste, delete), and the formatting accelerator and editing-command handlers swallow `Ctrl+B/I/U`, `Ctrl+Z`, `Ctrl+Y` when the control is read-only — matching how WinUI's `RichEditBox` ignores those gestures on a non-editable surface.
+Status: started.
+
+Landed:
+
+- `IsReadOnly` propagates to the editor host (gating typing, paste, delete), and the formatting accelerator and editing-command handlers swallow `Ctrl+B/I/U`, `Ctrl+Z`, `Ctrl+Y` when the control is read-only — matching how WinUI's `RichEditBox` ignores those gestures on a non-editable surface.
+- Default `SelectionFlyout` and `ContextFlyout` now reach WinUI parity: a `CommandBarFlyout` carries Bold/Italic/Underline toggle buttons on the primary strip plus Cut/Copy/Paste/Undo/Redo/Select All as secondary commands. State (`IsChecked`, `IsEnabled`) refreshes on `Opening` from the live document selection and the read-only flag. The selection flyout auto-shows after a pointer release when a non-empty selection exists, mirroring the floating bar in the gallery. Public `ToggleSelectionBold`/`Italic`, `CutSelection`, `CopySelection`, `PasteFromClipboard` methods drive both the flyout and any external automation.
 
 Remaining work in this phase:
 
@@ -215,6 +220,7 @@ Remaining work in this phase:
 - proofing-related events and flyouts
 - candidate window events
 - placeholder/header/description polish
+- richer clipboard formats (formatted text round-trip is currently plain-text only)
 
 Current checkout:
 
