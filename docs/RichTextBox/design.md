@@ -215,3 +215,5 @@ what remains blocked, and the next recommended slice.
   `TextLayoutHost` detach/attach behavior in Phase 0 host.
 - [Session 6](session6.md): Added mutation-after-assignment selection coherence
   runtime test for `RichTextBox`.
+- [Session 7](session7.md): Fixed pre-layout selection snapshot so `SelectAll()`
+  after document mutation returns expected selected text.

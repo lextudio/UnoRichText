@@ -404,6 +404,7 @@ public class RichTextBlock : Panel
 
     public void SelectAll()
     {
+        EnsureFlatItemsSnapshot();
         if (_flatItemCharOffsets.Length == 0) return;
         SetSelection(0, _flatItemCharOffsets[^1]);
     }
@@ -1089,6 +1090,7 @@ public class RichTextBlock : Panel
 
     private string BuildSelectedText()
     {
+        EnsureFlatItemsSnapshot();
         if (_selectionAnchor < 0 || _selectionFocus < 0 || _selectionAnchor == _selectionFocus
             || _flatItems is null || _flatItemCharOffsets.Length == 0)
             return string.Empty;
@@ -1114,6 +1116,20 @@ public class RichTextBlock : Panel
         }
 
         return sb.ToString();
+    }
+
+    // Selection APIs can be invoked before the first layout pass (or between
+    // document mutations and the next measure), so keep a lightweight text
+    // snapshot available for offset/selection text calculations.
+    private void EnsureFlatItemsSnapshot()
+    {
+        if (_flatItems is { Length: > 0 } && _flatItemCharOffsets.Length > 0)
+            return;
+
+        var flatItems = new List<FlatItem>();
+        CollectFlatItems(flatItems, RootProperties());
+        _flatItems = flatItems.ToArray();
+        _flatItemCharOffsets = BuildCharOffsets(flatItems);
     }
 
     // ── Selection coordination ────────────────────────────────────────
