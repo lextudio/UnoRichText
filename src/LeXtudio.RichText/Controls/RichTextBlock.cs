@@ -1361,11 +1361,12 @@ public class RichTextBlock : Panel
             return;
         }
 
-        for (var i = 0; i < blocks.Count; i++)
+        var blockIndex = 0;
+        foreach (var block in blocks)
         {
-            if (i > 0)
+            if (blockIndex++ > 0)
                 result.Add(new TextRunItem("\n", root));
-            if (blocks[i] is Paragraph bp)
+            if (block is Paragraph bp)
             {
                 var blockProps = root;
                 if (InheritedProperties.IsExplicitFontSize(bp.FontSize))

@@ -225,3 +225,11 @@ what remains blocked, and the next recommended slice.
   infinite-recursion trap in the `TextRangeBase` shim, populated `_TextSegments`
   in the constructor, and implemented WPF-style plain-text walking in
   `TextRangeBase.GetText`.
+- [Session 12](session12.md): Promoted upstream `TextSchema.cs` — replaced the
+  66-line return-true stub with real WPF schema validation; small
+  `#if !HAS_UNO` patch covers WPF-only DependencyProperty references; `Image`
+  resolves to the WinUI control, not a shim.
+- [Session 13](session13.md): Promoted upstream `TextElementCollection<T>` —
+  resolved the cross-container reparenting blocker; cross-paragraph
+  `TextRange.Text` now works end-to-end; an Uno partial preserves the
+  `INotifyCollectionChanged` surface the renderer relies on.

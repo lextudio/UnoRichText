@@ -55,25 +55,45 @@ public sealed class TextRangeTests
     }
 
     [Test]
-    public async Task Diagnose_ParagraphPointerWalk()
+    public async Task Text_ReturnsPlainTextAcrossParagraphs()
     {
         await UnoRuntimeTestHost.RunOnUIThreadAsync(() =>
         {
-            var run = new Run("Alpha");
-            var paragraph = new Paragraph(run);
+            var document = new FlowDocument();
+            document.Blocks.Add(new Paragraph(new Run("Alpha")));
+            document.Blocks.Add(new Paragraph(new Run("Beta")));
 
-            var paraStart = ((System.Windows.Documents.ITextPointer)paragraph.ContentStart).CreatePointer();
-            var paraEnd = (System.Windows.Documents.ITextPointer)paragraph.ContentEnd;
-            var compare = paraStart.CompareTo(paraEnd);
-            var contextFwd = paraStart.GetPointerContext(System.Windows.Documents.LogicalDirection.Forward);
+            var range = new TextRange(document.ContentStart, document.ContentEnd);
 
-            TestContext.WriteLine($"paragraph.ContentStart.CompareTo(ContentEnd)={compare}");
-            TestContext.WriteLine($"paragraph.ContentStart.GetPointerContext(Forward)={contextFwd}");
+            Assert.That(range.Text, Does.Contain("Alpha"));
+            Assert.That(range.Text, Does.Contain("Beta"));
+            Assert.That(range.Text, Does.Contain("\r\n"));
+        });
+    }
 
-            var runStart = (System.Windows.Documents.ITextPointer)run.ContentStart;
-            TestContext.WriteLine($"paragraph.ContentStart.CompareTo(run.ContentStart)={paraStart.CompareTo(runStart)}");
+    [Test]
+    public async Task Text_ReturnsSlicedPlainTextAcrossParagraphs()
+    {
+        await UnoRuntimeTestHost.RunOnUIThreadAsync(() =>
+        {
+            var document = new FlowDocument();
+            var firstParagraph = new Paragraph(new Run("Alpha"));
+            var secondParagraph = new Paragraph(new Run("Beta"));
+            document.Blocks.Add(firstParagraph);
+            document.Blocks.Add(secondParagraph);
 
-            Assert.Pass();
+            // paragraph.ContentStart sits one symbol before the Run's
+            // element-start; +1 lands inside the run's text content.
+            // firstParagraph.ContentStart + 4 = between 'p' and 'h' of "Alpha".
+            // secondParagraph.ContentStart + 3 = between 'e' and 't' of "Beta".
+            var start = firstParagraph.ContentStart.GetPositionAtOffset(4)
+                        ?? document.ContentStart;
+            var end = secondParagraph.ContentStart.GetPositionAtOffset(3)
+                      ?? document.ContentEnd;
+
+            var range = new TextRange(start, end);
+
+            Assert.That(range.Text, Is.EqualTo("ha\r\nBe"));
         });
     }
 
