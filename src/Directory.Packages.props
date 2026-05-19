@@ -11,5 +11,6 @@
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.92.0" />
     <PackageVersion Include="LeXtudio.UnoPropertyGrid" Version="0.3.4" />
     <PackageVersion Include="CommunityToolkit.WinUI.Controls.Sizers" Version="8.2.251219" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
   </ItemGroup>
 </Project>

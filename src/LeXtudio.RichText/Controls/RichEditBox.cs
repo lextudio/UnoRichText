@@ -25,6 +25,12 @@ using InputScope = Microsoft.UI.Xaml.Input.InputScope;
 
 namespace LeXtudio.UI.Xaml.Controls;
 
+#if WINDOWS_APP_SDK
+public partial class RichEditBox : Microsoft.UI.Xaml.Controls.RichEditBox
+{
+    // No stubs here: the real WinUI control is used when targeting Windows.
+}
+#else
 public partial class RichEditBox : ContentControl
 {
     // ---- Dependency properties --------------------------------------------------
@@ -190,10 +196,30 @@ public partial class RichEditBox : ContentControl
         {
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
-            VerticalAlignment = VerticalAlignment.Stretch,
+            // Horizontal stretch only. WinUI's RichEditBox sizes itself to
+            // its content vertically by default — single line at first, then
+            // growing as more lines are added. Forcing VerticalAlignment.Stretch
+            // here made the control fill its entire container, producing a
+            // tall empty box even with no text.
             HorizontalAlignment = HorizontalAlignment.Stretch,
             IsReadOnly = IsReadOnly,
         };
+
+        // Disable the inner ScrollViewer so the host's measured size always
+        // tracks content (single line at first, growing as more lines are
+        // added). Without this Uno's TextBox would show internal scrollbars
+        // after the first overflow and stop reporting a taller measured size.
+        //
+        // Leave VerticalAlignment alone (Stretch by default): in an Auto-
+        // sized parent slot, Stretch measures to content; in a bounded slot
+        // (explicit Height, star row), Stretch fills. That dual behavior is
+        // exactly what WinUI's RichEditBox does, so `<RichEditBox/>` in a
+        // StackPanel grows line-by-line while `<RichEditBox Height="200"/>`
+        // stays 200 tall.
+        ScrollViewer.SetVerticalScrollMode(_editorHost.InnerTextBox, ScrollMode.Disabled);
+        ScrollViewer.SetVerticalScrollBarVisibility(_editorHost.InnerTextBox, ScrollBarVisibility.Disabled);
+        ScrollViewer.SetHorizontalScrollMode(_editorHost.InnerTextBox, ScrollMode.Disabled);
+        ScrollViewer.SetHorizontalScrollBarVisibility(_editorHost.InnerTextBox, ScrollBarVisibility.Disabled);
 
         _renderOverlay = new RichTextBlock
         {
@@ -201,7 +227,6 @@ public partial class RichEditBox : ContentControl
             Padding = new Thickness(8, 6, 8, 6),
             TextWrapping = TextWrapping.Wrap,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
             Visibility = Visibility.Collapsed,
         };
 
@@ -259,7 +284,9 @@ public partial class RichEditBox : ContentControl
 
         // RichEditBox itself should fill whatever its parent gives it.
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
-        VerticalContentAlignment = VerticalAlignment.Stretch;
+        // No VerticalContentAlignment.Stretch: keep the host's natural single-
+        // line height as the starting size. The control grows downward as
+        // content is added (matching WinUI's RichEditBox).
 
         // Propagate the WinUI-shape RichEditBox properties to the underlying host.
         RegisterPropertyChangedCallback(PlaceholderTextProperty, (_, _) => _editorHost.PlaceholderText = PlaceholderText ?? string.Empty);
@@ -964,3 +991,4 @@ public sealed class RichEditTextRangeAlternatives
 {
     public System.Collections.Generic.IList<string> Alternatives { get; } = new System.Collections.Generic.List<string>();
 }
+#endif

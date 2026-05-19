@@ -9,6 +9,7 @@ namespace LeXtudio.UI.Xaml.Controls;
 /// <summary>
 /// Uno host for a WPF-shaped <see cref="FlowDocument"/>.
 /// </summary>
+[Obsolete("RichEditBox or RichTextBlock should be used for production scenarios. This is just an experimental control for testing the FlowDocument implementation.")]
 public sealed class RichTextBox : ContentControl
 {
     public static DependencyProperty DocumentProperty { get; } =

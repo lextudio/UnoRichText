@@ -20,8 +20,12 @@ using Pretext;
 using System.Windows.Documents;
 
 namespace LeXtudio.UI.Xaml.Controls;
-
-[Obsolete("RichTextBlock should not be used. Use RichTextBox instead for production scenarios.")]
+#if WINDOWS_APP_SDK
+public partial class RichTextBlock : Microsoft.UI.Xaml.Controls.RichTextBlock
+{
+    // No stubs here: the real WinUI control is used when targeting Windows.
+}
+#else
 public class RichTextBlock : Panel
 {
     public static DependencyProperty CharacterSpacingProperty { get; } =
@@ -1322,17 +1326,16 @@ public class RichTextBlock : Panel
 
     private TextPointer CreateTextPointer(int offset)
     {
-        _pointerContainer ??= new TextContainer(this, false);
-        var ptr = _pointerContainer.Start;
-        var clamped = Math.Clamp(offset, 0, TextLength);
-        _pointerOffsets.AddOrUpdate(ptr, new PointerOffsetRecord { Offset = clamped });
-        return ptr;
+        return TextPointerShim.Create(this, Math.Clamp(offset, 0, TextLength));
     }
 
     private int GetOffset(TextPointer pointer)
     {
-        if (_pointerOffsets.TryGetValue(pointer, out var record))
-            return Math.Clamp(record.Offset, 0, TextLength);
+        if (TextPointerShim.GetParent(pointer) is RichTextBlock block && ReferenceEquals(block, this))
+        {
+            return Math.Clamp(TextPointerShim.GetOffset(pointer), 0, TextLength);
+        }
+
         return 0;
     }
 
@@ -1664,3 +1667,4 @@ public sealed class HyperlinkClickEventArgs(Hyperlink hyperlink) : EventArgs
 {
     public Hyperlink Hyperlink { get; } = hyperlink;
 }
+#endif

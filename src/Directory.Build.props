@@ -6,6 +6,8 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <EnableRichTextBox Condition="'$(EnableRichTextBox)' == ''">false</EnableRichTextBox>
     <DefineConstants Condition="'$(EnableRichTextBox)' == 'true'">$(DefineConstants);RICHTEXTBOX</DefineConstants>
+    <WindowsTargetPlatformVersion>10.0.19041.0</WindowsTargetPlatformVersion>
+    <WinAppSdkVersion>1.8.260317003</WinAppSdkVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="GitVersion.MsBuild" PrivateAssets="All" />

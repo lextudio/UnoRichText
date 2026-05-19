@@ -1,6 +1,7 @@
 <Project Sdk="Uno.Sdk">
   <PropertyGroup>
     <TargetFrameworks>net10.0-desktop</TargetFrameworks>
+    <TargetFrameworks Condition="'$(OS)' == 'Windows_NT'">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
     <RootNamespace>LeXtudio.UI.Xaml</RootNamespace>
     <AssemblyName>LeXtudio.RichText</AssemblyName>
     <Nullable>enable</Nullable>
@@ -27,13 +28,25 @@
     <UseNuGetPackage>false</UseNuGetPackage>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.19041.0'">
+    <UseWinUI>true</UseWinUI>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <DefineConstants>$(DefineConstants);WINDOWS_APP_SDK</DefineConstants>
+    <WindowsSdkPackageVersion>10.0.19041.57</WindowsSdkPackageVersion>
+  </PropertyGroup>
+
+  <!-- WinUI-specific: Windows App SDK and the thin wrapper stub -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.19041.0'">
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(UseNuGetPackage)' == 'true'">
-    <PackageReference Include="Pretext.Uno" />
+    <PackageReference Include="Pretext.Uno" Condition="'$(TargetFramework)' == 'net10.0-desktop'" />
     <PackageReference Include="LeXtudio.Windows" />
     <PackageReference Include="LeXtudio.TextBox" />
   </ItemGroup>
   <ItemGroup Condition="'$(UseNuGetPackage)' != 'true'">
-    <ProjectReference Include="..\..\ext\PretextSharp\src\Pretext.Uno\Pretext.Uno.csproj" />
+    <ProjectReference Include="..\..\ext\PretextSharp\src\Pretext.Uno\Pretext.Uno.csproj" Condition="'$(TargetFramework)' == 'net10.0-desktop'" />
     <ProjectReference Include="..\..\..\WindowsShims\src\LeXtudio.Windows\LeXtudio.Windows.csproj" />
     <ProjectReference Include="..\..\..\TextCore.Uno\src\LeXtudio.TextBox\LeXtudio.TextBox.csproj" />
   </ItemGroup>
