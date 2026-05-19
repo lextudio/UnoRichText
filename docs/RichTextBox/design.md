@@ -233,3 +233,11 @@ what remains blocked, and the next recommended slice.
   resolved the cross-container reparenting blocker; cross-paragraph
   `TextRange.Text` now works end-to-end; an Uno partial preserves the
   `INotifyCollectionChanged` surface the renderer relies on.
+- [Session 14](session14.md): Promoted upstream `TextRangeBase.cs` —
+  retired the Session 11 hand-rolled stub; real WPF change-block and
+  text-walker semantics back `ITextRange`; clipboard/serialization paths
+  gated behind `#if !HAS_UNO` pending future sessions.
+- [Session 15](session15.md): Promoted upstream `TextRangeEdit.cs` (2,382
+  lines) — real range-mutation primitives back Bold/Italic/SetInlineProperty;
+  added `GetValueSource` / `GetDefaultValue` extension members and minimal
+  `TextRangeEditLists` / `TextEditorCharacters` stubs.
