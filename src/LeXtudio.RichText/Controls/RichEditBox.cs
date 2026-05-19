@@ -196,12 +196,11 @@ public partial class RichEditBox : ContentControl
         {
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
-            // Horizontal stretch only. WinUI's RichEditBox sizes itself to
-            // its content vertically by default — single line at first, then
-            // growing as more lines are added. Forcing VerticalAlignment.Stretch
-            // here made the control fill its entire container, producing a
-            // tall empty box even with no text.
+            // Stretch during arrange, but keep Auto-sized measurement content
+            // driven. That lets plain RichEditBox start as a single line while
+            // explicit Height/star-row gallery cases fill their allotted slot.
             HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
             IsReadOnly = IsReadOnly,
         };
 
@@ -282,11 +281,11 @@ public partial class RichEditBox : ContentControl
 
         _editorHost.InnerTextBox.ContextRequested += OnInnerTextBoxContextRequested;
 
-        // RichEditBox itself should fill whatever its parent gives it.
+        // RichEditBox itself should fill whatever its parent gives it. This
+        // does not change Auto-sized measurement, but it makes explicit
+        // Height/star-row gallery cases arrange the editor to the full slot.
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
-        // No VerticalContentAlignment.Stretch: keep the host's natural single-
-        // line height as the starting size. The control grows downward as
-        // content is added (matching WinUI's RichEditBox).
+        VerticalContentAlignment = VerticalAlignment.Stretch;
 
         // Propagate the WinUI-shape RichEditBox properties to the underlying host.
         RegisterPropertyChangedCallback(PlaceholderTextProperty, (_, _) => _editorHost.PlaceholderText = PlaceholderText ?? string.Empty);

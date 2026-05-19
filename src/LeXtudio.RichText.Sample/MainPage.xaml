@@ -415,7 +415,7 @@
                     <Border Style="{StaticResource GalleryCardStyle}">
                         <StackPanel Spacing="12">
                             <TextBlock Style="{StaticResource GalleryHeaderStyle}" Text="A simple text editor using RichEditBox." />
-                            <rt:RichEditBox automation:AutomationProperties.Name="simple text editor" Height="200" />
+                            <rt:RichEditBox automation:AutomationProperties.Name="simple text editor" />
                         </StackPanel>
                     </Border>
 

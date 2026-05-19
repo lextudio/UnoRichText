@@ -1318,12 +1318,6 @@ public class RichTextBlock : Panel
         ProtectedCursor = IsTextSelectionEnabled ? TextSelectionCursor : null;
     }
 
-    // Associates character offsets with TextPointer instances for RichTextBlock hit-testing.
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TextPointer, PointerOffsetRecord> _pointerOffsets = new();
-    private TextContainer? _pointerContainer;
-
-    private sealed class PointerOffsetRecord { public int Offset; }
-
     private TextPointer CreateTextPointer(int offset)
     {
         return TextPointerShim.Create(this, Math.Clamp(offset, 0, TextLength));
