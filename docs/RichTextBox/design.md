@@ -221,3 +221,7 @@ what remains blocked, and the next recommended slice.
   assertion and documented `TextPointer.Offset` blocker for range tests.
 - [Session 9](session9.md): Investigated pointer-range selection; documented
   current `Select(start,end)` blocker and required next dependency slice.
+- [Session 11](session11.md): Brought upstream `TextRange` online — fixed the
+  infinite-recursion trap in the `TextRangeBase` shim, populated `_TextSegments`
+  in the constructor, and implemented WPF-style plain-text walking in
+  `TextRangeBase.GetText`.

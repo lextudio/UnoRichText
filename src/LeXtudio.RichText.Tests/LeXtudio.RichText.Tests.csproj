@@ -38,6 +38,7 @@
     <Compile Include="Documents\FlowDocumentTests.cs" />
     <Compile Include="Documents\InlineTests.cs" />
     <Compile Include="Documents\RichEditTextDocumentTests.cs" />
+    <Compile Include="Documents\TextRangeTests.cs" />
     <Compile Include="Controls\InlineCodeRenderingTests.cs" />
     <Compile Include="Controls\OverflowLayoutTests.cs" />
     <Compile Include="Controls\RichTextBoxTests.cs" />
