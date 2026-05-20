@@ -17,12 +17,14 @@ using Run = System.Windows.Documents.Run;
 using Hyperlink = System.Windows.Documents.Hyperlink;
 using Inline = System.Windows.Documents.Inline;
 using Span = System.Windows.Documents.Span;
+using WpfRichTextBox = System.Windows.Controls.RichTextBox;
 
 namespace LeXtudio.RichText.Sample;
 
 public sealed partial class MainPage : Page
 {
     private global::Windows.UI.Color currentColor = Colors.Green;
+    private WpfRichTextBox? _wpfRichTextBox;
 
     public MainPage()
     {
@@ -39,14 +41,19 @@ public sealed partial class MainPage : Page
 
     private void InitializeWpfRichTextBoxSample()
     {
+        _wpfRichTextBox = new WpfRichTextBox();
+        _wpfRichTextBox.SelectionChanged += LiveWpfRichTextBox_SelectionChanged;
+        WpfRichTextBoxHost.Content = _wpfRichTextBox;
+        WpfRichTextBoxPropertyGrid.SelectedObject = _wpfRichTextBox;
+
         var document = new FlowDocument();
 
         var intro = new Paragraph();
         intro.Inlines.Add(new Run { Text = "This sample hosts a " });
         intro.Inlines.Add(new Run { Text = "FlowDocument", FontWeight = FontWeights.SemiBold });
-        intro.Inlines.Add(new Run { Text = " using the new " });
-        intro.Inlines.Add(new Run { Text = "RichTextBox", FontStyle = global::Windows.UI.Text.FontStyle.Italic });
-        intro.Inlines.Add(new Run { Text = " shim surface." });
+        intro.Inlines.Add(new Run { Text = " inside the ported " });
+        intro.Inlines.Add(new Run { Text = "System.Windows.Controls.RichTextBox", FontStyle = global::Windows.UI.Text.FontStyle.Italic });
+        intro.Inlines.Add(new Run { Text = "." });
         document.Blocks.Add(intro);
 
         var details = new Paragraph();
@@ -54,15 +61,15 @@ public sealed partial class MainPage : Page
         var hyperlink = new Hyperlink { NavigateUri = new Uri("https://learn.microsoft.com/dotnet/desktop/wpf/controls/richtextbox-overview") };
         hyperlink.Inlines.Add(new Run { Text = "hyperlinks" });
         details.Inlines.Add(hyperlink);
-        details.Inlines.Add(new Run { Text = " are constructed with WPF-shaped document types and rendered through the Uno host." });
+        details.Inlines.Add(new Run { Text = " are constructed with WPF-shaped document types." });
         document.Blocks.Add(details);
 
         var note = new Paragraph();
-        note.Inlines.Add(new Run { Text = "Editing, caret, and selection parity are planned next.", FontWeight = FontWeights.SemiBold });
+        note.Inlines.Add(new Run { Text = "Editing driven by the ported TextEditor/TextBoxBase stack.", FontWeight = FontWeights.SemiBold });
         document.Blocks.Add(note);
-        LiveWpfRichTextBox.Document = document;
-        UpdateWpfRichTextBoxSelectionStatus();
 
+        _wpfRichTextBox.Document = document;
+        UpdateWpfRichTextBoxSelectionStatus();
     }
 
     private void EnsureGalleryRichTextBlocks()
@@ -466,23 +473,23 @@ public sealed partial class MainPage : Page
 
     private void SelectAllWpfRichTextBox_Click(object sender, RoutedEventArgs e)
     {
-        LiveWpfRichTextBox.SelectAll();
+        _wpfRichTextBox?.SelectAll();
         UpdateWpfRichTextBoxSelectionStatus();
     }
 
     private void CopyWpfRichTextBoxSelection_Click(object sender, RoutedEventArgs e)
     {
-        LiveWpfRichTextBox.CopySelectionToClipboard();
+        _wpfRichTextBox?.Copy();
     }
 
-    private void LiveWpfRichTextBox_SelectionChanged(object sender, RoutedEventArgs e)
+    private void LiveWpfRichTextBox_SelectionChanged(object sender, System.Windows.RoutedEventArgs e)
     {
         UpdateWpfRichTextBoxSelectionStatus();
     }
 
     private void UpdateWpfRichTextBoxSelectionStatus()
     {
-        var selectedText = LiveWpfRichTextBox.SelectedText;
+        var selectedText = _wpfRichTextBox?.Selection?.Text ?? string.Empty;
         WpfRichTextBoxSelectionStatus.Text = string.IsNullOrEmpty(selectedText)
             ? "Selection: none"
             : $"Selection: {selectedText}";

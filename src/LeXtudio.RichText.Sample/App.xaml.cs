@@ -1,3 +1,5 @@
+using LeXtudio.DevFlow.Agent.Uno;
+using Microsoft.Maui.DevFlow.Agent.Core;
 using Microsoft.UI.Xaml;
 using LeXtudioRTB = LeXtudio.UI.Xaml.Controls.RichTextBlock;
 using LeXtudioREB = LeXtudio.UI.Xaml.Controls.RichEditBox;
@@ -8,6 +10,7 @@ namespace LeXtudio.RichText.Sample;
 public partial class App : Application
 {
     private MainWindow? _window;
+    private UnoAgentService? _devFlowAgent;
 
     // Set by Program.Main when --diag is passed.
     public static bool DiagMode { get; set; }
@@ -22,6 +25,7 @@ public partial class App : Application
         LeXtudioRTB.DiagnosticsEnabled = true;
         LeXtudioREB.DiagnosticsEnabled = DiagMode;
         LeXtudioTextBox.DiagnosticsEnabled = DiagMode;
+        LeXtudio.UI.Xaml.Controls.DragDropLog.Enable();
         if (DiagMode)
         {
             ResetRichTextDiagnosticLog("LeXtudio.RichText.RichEditBox.log");
@@ -32,6 +36,9 @@ public partial class App : Application
         _window = new MainWindow();
         _window.Content = DiagMode ? new DiagPage() : new MainPage();
         _window.Activate();
+
+        _devFlowAgent = new UnoAgentService(new AgentOptions { Port = AgentOptions.DefaultPort });
+        _devFlowAgent.Start();
     }
 
     private static void ResetRichTextDiagnosticLog(string fileName)

@@ -129,6 +129,12 @@ public class RichTextBlock : Panel
     private List<int> _spellWordBoundaries = new();
     private List<(int correctionStart, int correctionEnd)?> _spellCorrections = new();
 
+    private int _dropCaretOffset = -1;
+    private System.Windows.Documents.TextEditorDragDropUno? _dragDrop;
+    // When a pointer-down lands inside an existing selection, we defer collapsing the selection
+    // until release (in case the user drags). -1 means no pending collapse.
+    private int _pendingDragCollapseIdx = -1;
+
     public RichTextBlock()
     {
         VerticalAlignment = VerticalAlignment.Top;
@@ -155,6 +161,15 @@ public class RichTextBlock : Panel
         _focusSink.GotFocus += OnFocusSinkGotFocus;
         _focusSink.LostFocus += OnFocusSinkLostFocus;
         UpdateSelectionCursor();
+    }
+
+    /// <summary>
+    /// Enables drag-and-drop on this renderer. Call from the editable host (RichTextBox) only —
+    /// RichTextBlock itself is read-only and should not initiate or accept drops.
+    /// </summary>
+    internal void EnableDragDrop()
+    {
+        _dragDrop ??= new System.Windows.Documents.TextEditorDragDropUno(this, new DragDropHost(this));
     }
 
     // ── Diagnostics ───────────────────────────────────────────────────
@@ -807,6 +822,20 @@ public class RichTextBlock : Panel
                         target.Children.Add(caretRect);
                         caretDrawn = true;
                     }
+
+                    if (_dropCaretOffset >= 0 && TryGetCaretX(lineFragments, _dropCaretOffset, out var dropCaretX))
+                    {
+                        // Orange drop-insertion caret
+                        var dropRect = new Rectangle
+                        {
+                            Width = 2,
+                            Height = Math.Max(1, lineHeight),
+                            Fill = new SolidColorBrush(Color.FromArgb(255, 255, 140, 0)),
+                        };
+                        Canvas.SetLeft(dropRect, dropCaretX);
+                        Canvas.SetTop(dropRect, visualY);
+                        target.Children.Add(dropRect);
+                    }
                 }
 
                 currentY += lineHeight;
@@ -1080,6 +1109,34 @@ public class RichTextBlock : Panel
         var pt = e.GetCurrentPoint(this).Position;
         var idx = HitTest(pt, clampToContent: true);
         if (idx < 0) return;
+
+        // Drag-aware press handling: only when drag-drop is enabled (i.e. RichTextBox, not RichTextBlock).
+        if (_dragDrop != null)
+        {
+            var selMinP = Math.Min(_selectionAnchor, _selectionFocus);
+            var selMaxP = Math.Max(_selectionAnchor, _selectionFocus);
+            var pressInsideSelection = _selectionAnchor >= 0 && _selectionFocus >= 0
+                && _selectionAnchor != _selectionFocus
+                && idx >= selMinP && idx < selMaxP;
+
+            DragDropLog.Write($"PointerPressed idx={idx} sel=[{selMinP},{selMaxP}) insideSel={pressInsideSelection} CanDrag(before)={CanDrag}");
+            _dragDrop.UpdateCanDrag(pressInsideSelection);
+            DragDropLog.Write($"PointerPressed CanDrag(after)={CanDrag}");
+
+            if (pressInsideSelection)
+            {
+                // Keep the existing selection intact; remember where to collapse if no drag follows.
+                _pendingDragCollapseIdx = idx;
+                _isPointerDown = false;
+                CapturePointer(e.Pointer);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        DragDropLog.Write($"PointerPressed idx={idx} -> starting new selection, _isPointerDown=true");
+        _pendingDragCollapseIdx = -1;
+        _dragDrop?.SuspendForSelection();
         NotifyGroupSelectionStarting();
         _preferredCaretX = null;
         SetSelection(idx, idx);
@@ -1091,6 +1148,7 @@ public class RichTextBlock : Panel
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
         if (!IsTextSelectionEnabled || !_isPointerDown) return;
+        // Selection is being extended — keep drag suppressed (SuspendForSelection was called on press).
         var pt = e.GetCurrentPoint(this).Position;
         var idx = HitTest(pt, clampToContent: true);
         if (idx >= 0)
@@ -1103,8 +1161,25 @@ public class RichTextBlock : Panel
 
     private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
     {
-        if (!IsTextSelectionEnabled || !_isPointerDown) return;
+        if (!IsTextSelectionEnabled) return;
+
+        // If a press inside the selection was pending and no drag occurred, collapse to that point.
+        if (_pendingDragCollapseIdx >= 0)
+        {
+            DragDropLog.Write($"PointerReleased: collapsing pending drag to idx={_pendingDragCollapseIdx}");
+            var collapseIdx = _pendingDragCollapseIdx;
+            _pendingDragCollapseIdx = -1;
+            _dragDrop?.UpdateCanDrag(false);
+            _preferredCaretX = null;
+            SetSelection(collapseIdx, collapseIdx);
+            e.Handled = true;
+            return;
+        }
+
+        DragDropLog.Write($"PointerReleased: _isPointerDown={_isPointerDown}");
+        if (!_isPointerDown) return;
         _isPointerDown = false;
+        _dragDrop?.ResumeAfterSelection();
         ReleasePointerCapture(e.Pointer);
         e.Handled = true;
     }
@@ -1659,7 +1734,7 @@ public class RichTextBlock : Panel
                     for (var si = 0; si < segments.Length; si++)
                     {
                         if (segments[si].Length > 0)
-                            result.Add(new TextRunItem(segments[si], props, currentLink));
+                            result.Add(new TextRunItem(segments[si], props, currentLink, run));
                         if (si < segments.Length - 1)
                         {
                             if (result.Count == 0 || result[^1] is not TextRunItem { Text: "\n" })
@@ -1718,7 +1793,7 @@ public class RichTextBlock : Panel
 
     private abstract record FlatItem(InheritedProperties Props);
 
-    private record TextRunItem(string Text, InheritedProperties Props, Hyperlink? Hyperlink = null)
+    private record TextRunItem(string Text, InheritedProperties Props, Hyperlink? Hyperlink = null, Run? SourceRun = null)
         : FlatItem(Props);
 
     private record UiContainerItem(UIElement Child, InheritedProperties Props) : FlatItem(Props)
@@ -1746,6 +1821,73 @@ public class RichTextBlock : Panel
     private record PlacedLine(double StartX, double EndX, double Y, double Height, int StartOffset, int EndOffset);
 
     private readonly record struct RenderResult(double TotalHeight, double ConsumedHeight);
+
+    // ── Drag-and-drop host ────────────────────────────────────────────
+    // All logic lives in TextEditorDragDropUno; this inner class bridges
+    // the interface to RichTextBlock internals.
+
+    private sealed class DragDropHost(RichTextBlock owner) : System.Windows.Documents.IRichTextDragDropHost
+    {
+        public bool IsReadOnly => !owner.IsTextSelectionEnabled;
+        public bool HasLayout => owner._preparedSegments.Length > 0 && owner._flatItems != null;
+
+        public (int min, int max) GetSelectionRange()
+        {
+            var min = Math.Min(owner._selectionAnchor, owner._selectionFocus);
+            var max = Math.Max(owner._selectionAnchor, owner._selectionFocus);
+            return (min, max);
+        }
+
+        public string GetTextRange(int start, int end)
+        {
+            var full = owner.GetFullText();
+            start = Math.Clamp(start, 0, full.Length);
+            end = Math.Clamp(end, start, full.Length);
+            return full.Substring(start, end - start);
+        }
+
+        public int HitTest(Point pt)
+            => owner.HitTest(pt, clampToContent: true);
+
+        public void InsertTextAt(int offset, string text)
+        {
+            var items = owner._flatItems;
+            var offsets = owner._flatItemCharOffsets;
+            if (items == null || offsets.Length == 0) return;
+
+            for (var i = 0; i < items.Length; i++)
+            {
+                if (items[i] is not TextRunItem run) continue;
+                var itemStart = offsets[i];
+                var itemEnd = itemStart + run.Text.Length;
+                if (offset >= itemStart && offset <= itemEnd)
+                {
+                    if (run.SourceRun is { } src)
+                    {
+                        var local = offset - itemStart;
+                        src.Text = src.Text.Substring(0, local) + text + src.Text.Substring(local);
+                    }
+                    return;
+                }
+            }
+            // Append to last run when offset is past end of content
+            for (var i = items.Length - 1; i >= 0; i--)
+            {
+                if (items[i] is TextRunItem last && last.SourceRun is { } src)
+                {
+                    src.Text += text;
+                    return;
+                }
+            }
+        }
+
+        public void SetDropCaretOffset(int offset)
+        {
+            if (owner._dropCaretOffset == offset) return;
+            owner._dropCaretOffset = offset;
+            owner.InvalidateArrange();
+        }
+    }
 
     // ── Focus sink for keyboard events ────────────────────────────────
 

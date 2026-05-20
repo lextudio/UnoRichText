@@ -231,12 +231,10 @@
                                     <Button Click="SelectAllWpfRichTextBox_Click" Content="Select all" />
                                     <Button Click="CopyWpfRichTextBoxSelection_Click" Content="Copy selection" />
                                 </StackPanel>
-                                <rt:RichTextBox
-                                    x:Name="LiveWpfRichTextBox"
+                                <ContentPresenter
+                                    x:Name="WpfRichTextBoxHost"
                                     Grid.Row="1"
-                                    Background="Transparent"
-                                    MinHeight="220"
-                                    SelectionChanged="LiveWpfRichTextBox_SelectionChanged" />
+                                    MinHeight="220" />
                                 <TextBlock
                                     x:Name="WpfRichTextBoxSelectionStatus"
                                     Grid.Row="2"
@@ -249,7 +247,7 @@
                         <TextBlock
                             FontSize="13"
                             Foreground="#5A5A5A"
-                            Text="This milestone hosts a System.Windows.Documents.FlowDocument through the new RichTextBox shim, exposes control-level selection APIs, and supports caret movement with Left, Right, Home, End, and Shift-selection."
+                            Text="System.Windows.Controls.RichTextBox — the ported WPF control. Hosts a FlowDocument via the ported TextEditor/TextBoxBase stack. Rendering is provided by RichTextBlock."
                             TextWrapping="Wrap" />
                     </StackPanel>
                 </ScrollViewer>
@@ -268,19 +266,24 @@
                     VerticalAlignment="Stretch"
                     Background="#FAFAFA"
                     CornerRadius="8">
-                    <StackPanel Spacing="12">
+                    <Grid RowSpacing="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition />
+                        </Grid.RowDefinitions>
                         <TextBlock
                             FontSize="18"
                             FontWeight="SemiBold"
-                            Text="Hosted FlowDocument" />
-                        <TextBlock
-                            Text="The sample document is created in MainPage.xaml.cs using WPF-shaped document objects:"
-                            TextWrapping="Wrap" />
-                        <TextBlock FontFamily="Consolas" Text="new FlowDocument()" />
-                        <TextBlock FontFamily="Consolas" Text="new Paragraph()" />
-                        <TextBlock FontFamily="Consolas" Text="new Run { Text = ... }" />
-                        <TextBlock FontFamily="Consolas" Text="new Hyperlink { NavigateUri = ... }" />
-                    </StackPanel>
+                            Text="RichTextBox Properties" />
+                        <grid:PropertyGridControl
+                            x:Name="WpfRichTextBoxPropertyGrid"
+                            Grid.Row="1"
+                            Margin="0,8,0,0"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            PropertyGridTheme="Light"
+                            ShowReadOnlyProperties="False" />
+                    </Grid>
                 </Border>
             </Grid>
         </TabViewItem>

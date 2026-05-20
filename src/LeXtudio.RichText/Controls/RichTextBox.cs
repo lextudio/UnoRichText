@@ -42,6 +42,7 @@ public sealed class RichTextBox : ContentControl
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Stretch;
         _renderer.SelectionChanged += OnRendererSelectionChanged;
+        _renderer.EnableDragDrop();
         Content = _renderer;
     }
 

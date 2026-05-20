@@ -32,4 +32,8 @@
     <PackageReference Include="Tmds.DBus.Protocol" />
     <PackageReference Include="CommunityToolkit.WinUI.Controls.Sizers" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\wpf-tools\wpf-labs\src\DevFlow\LeXtudio.DevFlow.Agent.Uno\LeXtudio.DevFlow.Agent.Uno.csproj" />
+  </ItemGroup>
 </Project>
