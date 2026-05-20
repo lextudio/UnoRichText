@@ -60,10 +60,9 @@ public sealed partial class MainPage : Page
         var note = new Paragraph();
         note.Inlines.Add(new Run { Text = "Editing, caret, and selection parity are planned next.", FontWeight = FontWeights.SemiBold });
         document.Blocks.Add(note);
-#if RICHTEXTBOX
         LiveWpfRichTextBox.Document = document;
         UpdateWpfRichTextBoxSelectionStatus();
-#endif
+
     }
 
     private void EnsureGalleryRichTextBlocks()
@@ -464,7 +463,7 @@ public sealed partial class MainPage : Page
 
     private static string EscapeSnapshotText(string text)
         => "\"" + text.Replace("\\", "\\\\").Replace("\r", "\\r").Replace("\n", "\\n").Replace("\"", "\\\"") + "\"";
-#if RICHTEXTBOX
+
     private void SelectAllWpfRichTextBox_Click(object sender, RoutedEventArgs e)
     {
         LiveWpfRichTextBox.SelectAll();
@@ -488,5 +487,4 @@ public sealed partial class MainPage : Page
             ? "Selection: none"
             : $"Selection: {selectedText}";
     }
-#endif
 }

@@ -10,7 +10,7 @@
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationPublisher>LeXtudio</ApplicationPublisher>
-    <UnoFeatures>SkiaRenderer;</UnoFeatures>
+    <UnoFeatures>SkiaRenderer;SpellChecking;</UnoFeatures>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseNuGetPackage>true</UseNuGetPackage>

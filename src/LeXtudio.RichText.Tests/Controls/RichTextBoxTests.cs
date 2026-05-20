@@ -6,7 +6,7 @@ using Paragraph = System.Windows.Documents.Paragraph;
 using Run = System.Windows.Documents.Run;
 
 namespace LeXtudio.RichText.Tests.Controls;
-#if RICHTEXTBOX
+
 [TestFixture]
 public sealed class RichTextBoxTests
 {
@@ -101,4 +101,3 @@ public sealed class RichTextBoxTests
     }
 
 }
-#endif

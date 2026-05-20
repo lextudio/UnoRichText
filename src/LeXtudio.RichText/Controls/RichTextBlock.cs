@@ -83,6 +83,8 @@ public class RichTextBlock : Panel
         DependencyProperty.Register(nameof(TextTrimming), typeof(TextTrimming), typeof(RichTextBlock), new PropertyMetadata(TextTrimming.None, OnLayoutPropertyChanged));
     public static DependencyProperty TextWrappingProperty { get; } =
         DependencyProperty.Register(nameof(TextWrapping), typeof(TextWrapping), typeof(RichTextBlock), new PropertyMetadata(TextWrapping.WrapWholeWords, OnLayoutPropertyChanged));
+    public static DependencyProperty IsSpellCheckEnabledProperty { get; } =
+        DependencyProperty.Register(nameof(IsSpellCheckEnabled), typeof(bool), typeof(RichTextBlock), new PropertyMetadata(false, OnLayoutPropertyChanged));
 
     private static SolidColorBrush? _selectionBrush;
     private static SolidColorBrush SelectionBrush =>
@@ -122,6 +124,10 @@ public class RichTextBlock : Panel
     private double? _preferredCaretX;
     private double _lastConsumedContentHeight;
     private readonly ObservableCollection<TextHighlighter> _textHighlighters = new();
+
+    private static readonly Lazy<ISpellCheckBridge?> _spellCheckingService = new(TryLoadSpellCheckService);
+    private List<int> _spellWordBoundaries = new();
+    private List<(int correctionStart, int correctionEnd)?> _spellCorrections = new();
 
     public RichTextBlock()
     {
@@ -398,6 +404,12 @@ public class RichTextBlock : Panel
         set => SetValue(TextWrappingProperty, value);
     }
 
+    public bool IsSpellCheckEnabled
+    {
+        get => (bool)GetValue(IsSpellCheckEnabledProperty);
+        set => SetValue(IsSpellCheckEnabledProperty, value);
+    }
+
     public event EventHandler<HyperlinkClickEventArgs>? LinkClicked;
     public event ContextMenuOpeningEventHandler? ContextMenuOpening;
     public event global::Windows.Foundation.TypedEventHandler<RichTextBlock, IsTextTrimmedChangedEventArgs>? IsTextTrimmedChanged;
@@ -518,6 +530,7 @@ public class RichTextBlock : Panel
         }
         _preparedSegments = segments.ToArray();
         DiagLog($"PreparedSegments: {_preparedSegments.Length}");
+        UpdateSpellCorrections();
 
         if (_preparedSegments.Length == 0)
         {
@@ -767,7 +780,11 @@ public class RichTextBlock : Panel
                         }
 
                         if (placed.FlatItem is TextRunItem textRunItem)
+                        {
                             DrawDecorations(target, textRunItem.Props.TextDecorations, textRunItem.Props.Foreground, placed.X, placed.Y, placed.Width, lineHeight);
+                            if (IsSpellCheckEnabled)
+                                DrawSpellUnderlineForFragment(target, placed.X, placed.Y, placed.Width, lineHeight, placed.CharStart, placed.CharEnd);
+                        }
 
                         if (placed.Element is not null)
                         {
@@ -830,6 +847,133 @@ public class RichTextBlock : Panel
         return consumedHeight <= viewportTop + 0.5
             && lineTop <= viewportBottom + 0.5
             && lineHeight > viewportHeight + 0.5;
+    }
+
+    private void UpdateSpellCorrections()
+    {
+        if (!IsSpellCheckEnabled || _spellCheckingService.Value is not { } svc)
+        {
+            _spellWordBoundaries.Clear();
+            _spellCorrections.Clear();
+            return;
+        }
+        var text = GetFullText();
+        _spellWordBoundaries = GetWordBoundaries(text);
+        _spellCorrections = svc.SpellCheck(_spellWordBoundaries, text);
+    }
+
+    private static ISpellCheckBridge? TryLoadSpellCheckService()
+    {
+        // Try Uno.WinUI.SpellChecking (exists in Uno ≥ 6.6 or when SpellChecking UnoFeature is enabled).
+        // Use reflection so we compile against any Uno SDK version without a direct type reference.
+        try
+        {
+            var svcType = Type.GetType(
+                "Uno.WinUI.SpellChecking.SpellCheckingService, Uno.WinUI.SpellChecking",
+                throwOnError: false);
+            if (svcType == null) return null;
+            var instance = Activator.CreateInstance(svcType, typeof(RichTextBlock));
+            if (instance == null) return null;
+            var spellCheckMethod = svcType.GetMethod("SpellCheck")
+                ?? throw new InvalidOperationException("SpellCheckingService.SpellCheck not found");
+            return new ReflectionSpellCheckBridge(instance, spellCheckMethod);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private interface ISpellCheckBridge
+    {
+        List<(int correctionStart, int correctionEnd)?> SpellCheck(List<int> wordBoundaries, string text);
+    }
+
+    private sealed class ReflectionSpellCheckBridge(object service, System.Reflection.MethodInfo spellCheckMethod) : ISpellCheckBridge
+    {
+        public List<(int correctionStart, int correctionEnd)?> SpellCheck(List<int> wordBoundaries, string text)
+        {
+            var result = spellCheckMethod.Invoke(service, [wordBoundaries, text]);
+            return result as List<(int correctionStart, int correctionEnd)?> ?? new();
+        }
+    }
+
+    private string GetFullText()
+    {
+        if (_flatItems == null) return string.Empty;
+        var sb = new StringBuilder();
+        foreach (var item in _flatItems)
+        {
+            if (item is TextRunItem t)
+                sb.Append(t.Text);
+            else
+                sb.Append('￼');
+        }
+        return sb.ToString();
+    }
+
+    private static List<int> GetWordBoundaries(string text)
+    {
+        var boundaries = new List<int>();
+        int i = 0;
+        while (i < text.Length)
+        {
+            bool isWord = char.IsLetterOrDigit(text[i]) || text[i] == '\'';
+            while (i < text.Length && (char.IsLetterOrDigit(text[i]) || text[i] == '\'') == isWord)
+                i++;
+            boundaries.Add(i);
+        }
+        return boundaries;
+    }
+
+    private void DrawSpellUnderlineForFragment(Canvas target, double x, double y, double width, double lineHeight, int fragCharStart, int fragCharEnd)
+    {
+        if (_spellCorrections.Count == 0) return;
+        int segStart = 0;
+        for (int i = 0; i < _spellWordBoundaries.Count && i < _spellCorrections.Count; i++)
+        {
+            int segEnd = _spellWordBoundaries[i];
+            if (_spellCorrections[i] is { } correction)
+            {
+                int absStart = segStart + correction.correctionStart;
+                int absEnd = segStart + correction.correctionEnd;
+                if (absEnd > fragCharStart && absStart < fragCharEnd)
+                {
+                    var fragLen = fragCharEnd - fragCharStart;
+                    var t0 = fragLen > 0 ? Math.Max(0.0, (double)(absStart - fragCharStart) / fragLen) : 0;
+                    var t1 = fragLen > 0 ? Math.Min(1.0, (double)(absEnd - fragCharStart) / fragLen) : 1;
+                    DrawSpellUnderline(target, x + t0 * width, y, (t1 - t0) * width, lineHeight);
+                }
+            }
+            segStart = segEnd;
+        }
+    }
+
+    private static readonly SolidColorBrush SpellErrorBrush = new(Color.FromArgb(255, 220, 0, 0));
+
+    private static void DrawSpellUnderline(Canvas target, double x, double y, double width, double lineHeight)
+    {
+        if (width < 1) return;
+        const double step = 3.5;
+        const double amplitude = 1.5;
+        var underlineY = y + lineHeight * 0.92;
+        var points = new Microsoft.UI.Xaml.Media.PointCollection();
+        double cx = x;
+        bool up = true;
+        points.Add(new Point(cx, underlineY));
+        while (cx + step < x + width)
+        {
+            cx += step;
+            points.Add(new Point(cx, underlineY + (up ? -amplitude : amplitude)));
+            up = !up;
+        }
+        points.Add(new Point(x + width, underlineY));
+        target.Children.Add(new Polyline
+        {
+            Points = points,
+            Stroke = SpellErrorBrush,
+            StrokeThickness = 1.5,
+        });
     }
 
     private void DrawDecorations(Canvas target, TextDecorations decorations, Brush foreground, double x, double y, double width, double lineHeight)

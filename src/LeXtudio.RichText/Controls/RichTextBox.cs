@@ -5,13 +5,20 @@ using TextPointer = System.Windows.Documents.TextPointer;
 using TextSelection = System.Windows.Documents.TextSelection;
 
 namespace LeXtudio.UI.Xaml.Controls;
-#if RICHTEXTBOX
+
 /// <summary>
 /// Uno host for a WPF-shaped <see cref="FlowDocument"/>.
 /// </summary>
 [Obsolete("RichEditBox or RichTextBlock should be used for production scenarios. This is just an experimental control for testing the FlowDocument implementation.")]
 public sealed class RichTextBox : ContentControl
 {
+    public static DependencyProperty IsSpellCheckEnabledProperty { get; } =
+        DependencyProperty.Register(
+            nameof(IsSpellCheckEnabled),
+            typeof(bool),
+            typeof(RichTextBox),
+            new PropertyMetadata(false, OnIsSpellCheckEnabledChanged));
+
     public static DependencyProperty DocumentProperty { get; } =
         DependencyProperty.Register(
             nameof(Document),
@@ -27,6 +34,7 @@ public sealed class RichTextBox : ContentControl
 
     private readonly RichTextBlock _renderer = new();
     private FlowDocument? _attachedDocument;
+    private System.Windows.Controls.SpellCheck? _spellCheck;
 
     public RichTextBox()
     {
@@ -49,6 +57,15 @@ public sealed class RichTextBox : ContentControl
         set => SetValue(IsReadOnlyProperty, value);
     }
 
+    public bool IsSpellCheckEnabled
+    {
+        get => (bool)GetValue(IsSpellCheckEnabledProperty);
+        set => SetValue(IsSpellCheckEnabledProperty, value);
+    }
+
+    public System.Windows.Controls.SpellCheck SpellCheck =>
+        _spellCheck ??= new System.Windows.Controls.SpellCheck(v => IsSpellCheckEnabled = v);
+
     public TextPointer SelectionStart => _renderer.SelectionStart;
 
     public TextPointer SelectionEnd => _renderer.SelectionEnd;
@@ -58,6 +75,11 @@ public sealed class RichTextBox : ContentControl
     public TextSelection Selection => throw new NotSupportedException("RichTextBox.Selection depends on the WPF TextEditor/TextSelection bridge, which is not enabled in the Phase 0 render host.");
 
     public event RoutedEventHandler? SelectionChanged;
+
+    private static void OnIsSpellCheckEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        ((RichTextBox)d)._renderer.IsSpellCheckEnabled = (bool)e.NewValue;
+    }
 
     private static void OnDocumentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -100,4 +122,3 @@ public sealed class RichTextBox : ContentControl
         SelectionChanged?.Invoke(this, e);
     }
 }
-#endif
