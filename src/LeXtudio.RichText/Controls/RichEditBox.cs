@@ -25,12 +25,7 @@ using InputScope = Microsoft.UI.Xaml.Input.InputScope;
 
 namespace LeXtudio.UI.Xaml.Controls;
 
-#if WINDOWS_APP_SDK
-public partial class RichEditBox : Microsoft.UI.Xaml.Controls.RichEditBox
-{
-    // No stubs here: the real WinUI control is used when targeting Windows.
-}
-#else
+#if !WINDOWS_APP_SDK
 public partial class RichEditBox : ContentControl
 {
     // ---- Dependency properties --------------------------------------------------
