@@ -16,16 +16,13 @@ using Windows.System;
 using Windows.UI;
 using Windows.UI.Core;
 using Windows.UI.Text;
+#if !WINDOWS_APP_SDK
 using Pretext;
+#endif
 using System.Windows.Documents;
 
 namespace LeXtudio.UI.Xaml.Controls;
-#if WINDOWS_APP_SDK
-public partial class RichTextBlock : Microsoft.UI.Xaml.Controls.RichTextBlock
-{
-    // No stubs here: the real WinUI control is used when targeting Windows.
-}
-#else
+#if !WINDOWS_APP_SDK
 public class RichTextBlock : Panel
 {
     public static DependencyProperty CharacterSpacingProperty { get; } =
@@ -99,7 +96,7 @@ public class RichTextBlock : Panel
 
     // All live RichTextBlock instances — used to clear other blocks' selections on pointer press.
     private static readonly List<WeakReference<RichTextBlock>> AllInstances = new();
-    private static readonly System.Windows.FrameworkContentElement WpfCollectionOwner = new();
+    private static readonly System.Windows.Documents.FlowDocument WpfCollectionOwner = new();
 
     private readonly Canvas _canvas = new();
     // Use the WPF-shaped collections from System.Windows.Documents (our shim) explicitly —

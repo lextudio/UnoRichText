@@ -241,3 +241,40 @@ what remains blocked, and the next recommended slice.
   lines) — real range-mutation primitives back Bold/Italic/SetInlineProperty;
   added `GetValueSource` / `GetDefaultValue` extension members and minimal
   `TextRangeEditLists` / `TextEditorCharacters` stubs.
+- [Session 16](session16.md): Promoted upstream `TextEditor.cs` (WPF editing
+  controller) and `TextRangeEditLists.cs` — built out command-handler, dispatcher,
+  cursor, IME, and system-metrics shim infrastructure; spell-check gated
+  `#if !HAS_UNO`; 62-test baseline unchanged.
+- [Session 17](session17.md): Promoted TextEditorParagraphs, TextEditorLists,
+  TextEditorTables, TextEditorContextMenu, TextEditorMouse — added ContextMenu/MenuItem
+  shims, Visual3D partial stub, mouse-event shims, `GetPosition(object?)` adapters,
+  TSF reconversion gated `#if HAS_UNO`; 62-test baseline unchanged.
+- [Session 18](session18.md): Promoted TextEditorSelection and TextEditorTyping — added
+  KeyboardDevice, Key enum extensions, TextComposition stubs, InputLanguageManager event,
+  ScrollBar/IScrollInfo/TextBoxView shims, RoutedEventArgs.Handled, RoutedCommand 2-arg
+  overloads; RichTextBox.TextEditor returns null-Documents.TextEditor; 62-test baseline unchanged.
+- [Session 19](session19.md): Promoted TextEditorCopyPaste and TextEditorDragDrop — added
+  IDataObject/Clipboard/DataObject* event args, DragDrop statics, DragDropEffects/KeyStates enums,
+  WindowInteropHelper, RoutedEvent constructor, extended IScrollInfo with scroll methods, AdornerLayer
+  stub; gated WpfPayload rich-content paths and Win32 drag-drop with `#if HAS_UNO`; 62-test baseline
+  unchanged.
+- [Session 20](session20.md): Promoted TextRangeSerialization and TextEditorCharacters —
+  added TryRemove to TextDecorationCollection, DependencyProperty.OwnerType/FromName extensions,
+  FrameworkContentElement.LanguageProperty, BitmapImage shim, WpfPayload.AddImage stub;
+  gated image-package path with `#if !HAS_UNO`; patched ToggleUnderline Add call; 62-test baseline unchanged.
+- [Session 21](session21.md): Promoted FrameworkTextComposition, FrameworkRichTextComposition,
+  TextEffectResolver, TextSelectionHighlightLayer — added InputManager/TextCompositionAutoComplete/
+  CompositionText shims, TextEffect.Clone/PositionStart/PositionCount, DynamicPropertyReader;
+  gated three TSF COM methods with `#if !HAS_UNO`; 62-test baseline unchanged.
+- [Session 22](session22.md): Promoted NullTextContainer, NullTextNavigator, TextTreeDumper —
+  added DependencyProperty.DefaultMetadata extension; patched new DependencyObject() and
+  FixedDocument reference in NullTextNavigator; 62-test baseline unchanged.
+- [Session 23](session23.md): Promoted Table, TableRow, TableCell, TableRowGroup, and three
+  collection files — removed all Table* stubs from TableAndHighlightShims.cs; added
+  OnNewParent virtual to FrameworkContentElement; fixed InsertTable read-only property
+  assignments; no upstream patches needed; 62-test baseline unchanged.
+- [Session 24](session24.md): Promoted TextMapOffsetErrorLogger, TextRangeEditTables
+  (upstream), TextFindEngine, ColumnResizeUndoUnit — added TextDocumentView/CellInfo/
+  ColumnResizeAdorner stubs; one #if !HAS_UNO guard in TableBorderHitTest private body;
+  Fixed layout branch gated in TextFindEngine; deleted TextRangeEditTables local stub;
+  62-test baseline unchanged.

@@ -28,7 +28,7 @@
     <UseNuGetPackage>false</UseNuGetPackage>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.19041.0'">
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
     <UseWinUI>true</UseWinUI>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <DefineConstants>$(DefineConstants);WINDOWS_APP_SDK</DefineConstants>
@@ -36,7 +36,7 @@
   </PropertyGroup>
 
   <!-- WinUI-specific: Windows App SDK and the thin wrapper stub -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.19041.0'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
     <PackageReference Include="Microsoft.WindowsAppSDK" />
   </ItemGroup>
 
