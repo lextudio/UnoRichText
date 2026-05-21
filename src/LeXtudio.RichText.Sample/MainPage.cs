@@ -71,6 +71,22 @@ public sealed partial class MainPage : Page
         details.Inlines.Add(new Run { Text = " are constructed with WPF-shaped document types." });
         document.Blocks.Add(details);
 
+        var styles = new Paragraph();
+        styles.Inlines.Add(new Run { Text = "This line should visibly show " });
+        styles.Inlines.Add(new Run { Text = "semi-bold", FontWeight = FontWeights.SemiBold });
+        styles.Inlines.Add(new Run { Text = ", " });
+        styles.Inlines.Add(new Run { Text = "italic", FontStyle = global::Windows.UI.Text.FontStyle.Italic });
+        styles.Inlines.Add(new Run { Text = ", " });
+        var accent = new Span { Foreground = new SolidColorBrush(Colors.Firebrick) };
+        accent.Inlines.Add(new Run { Text = "colored" });
+        styles.Inlines.Add(accent);
+        styles.Inlines.Add(new Run { Text = ", and " });
+        var underlined = new System.Windows.Documents.Underline();
+        underlined.Inlines.Add(new Run { Text = "underlined" });
+        styles.Inlines.Add(underlined);
+        styles.Inlines.Add(new Run { Text = " text." });
+        document.Blocks.Add(styles);
+
         var note = new Paragraph();
         note.Inlines.Add(new Run { Text = "Editing driven by the ported TextEditor/TextBoxBase stack.", FontWeight = FontWeights.SemiBold });
         document.Blocks.Add(note);
