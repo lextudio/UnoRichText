@@ -1,8 +1,9 @@
-using System.Reflection;
 using System.Windows;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Markup;
 using LeXtudio.RichText.Tests.Runtime;
+using MS.Internal.Commands;
 using NUnit.Framework;
 using WpfRichTextBox = System.Windows.Controls.RichTextBox;
 
@@ -96,33 +97,63 @@ public sealed class WpfRichTextBoxShellTests
 
             var paragraph = (Paragraph)box.Document.Blocks.LastBlock!;
             var run = (Run)paragraph.Inlines.LastInline!;
-            Assert.That(run.Text, Is.EqualTo("Hello"));
+            Assert.That(new TextRange(run.ContentStart, run.ContentEnd).Text, Is.EqualTo("Hello"));
             Assert.That(box.ShouldSerializeDocument(), Is.True);
         });
     }
 
     [Test]
-    public async Task AppendText_UsesCurrentTypingFormat()
+    public async Task SelectionFormatting_CanBeAppliedAtCaret()
     {
         await UnoRuntimeTestHost.RunOnUIThreadAsync(() =>
         {
             var box = new WpfRichTextBox();
 
-            ApplyTypingProperty(box, TextElement.FontWeightProperty, FontWeights.Bold);
-            ApplyTypingProperty(box, TextElement.FontStyleProperty, FontStyles.Italic);
-            box.AppendText("Formatted");
+            box.Selection.ApplyPropertyValue(TextElement.FontWeightProperty, FontWeights.Bold);
+            box.Selection.ApplyPropertyValue(TextElement.FontStyleProperty, FontStyles.Italic);
 
-            var paragraph = (Paragraph)box.Document.Blocks.LastBlock!;
-            var run = (Run)paragraph.Inlines.LastInline!;
-            Assert.That(run.FontWeight, Is.EqualTo(FontWeights.Bold));
-            Assert.That(run.FontStyle, Is.EqualTo(FontStyles.Italic));
+            Assert.That(box.Selection.GetPropertyValue(TextElement.FontWeightProperty), Is.EqualTo(FontWeights.Bold));
+            Assert.That(box.Selection.GetPropertyValue(TextElement.FontStyleProperty), Is.EqualTo(FontStyles.Italic));
         });
     }
 
-    private static void ApplyTypingProperty(WpfRichTextBox box, DependencyProperty property, object value)
+    [Test]
+    public async Task RoutedCommand_ClassHandlers_RespectRegisteredControlType()
     {
-        var method = typeof(WpfRichTextBox).GetMethod("ApplyTypingProperty", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.That(method, Is.Not.Null);
-        method!.Invoke(box, [property, value]);
+        await UnoRuntimeTestHost.RunOnUIThreadAsync(() =>
+        {
+            var command = new RoutedCommand("TestCommand", typeof(WpfRichTextBox));
+            int richTextBoxExecutions = 0;
+            int flowDocumentExecutions = 0;
+
+            CommandHelpers.RegisterCommandHandler(
+                typeof(WpfRichTextBox),
+                command,
+                (_, e) =>
+                {
+                    richTextBoxExecutions++;
+                    e.Handled = true;
+                });
+
+            CommandHelpers.RegisterCommandHandler(
+                typeof(FlowDocument),
+                command,
+                (_, e) =>
+                {
+                    flowDocumentExecutions++;
+                    e.Handled = true;
+                });
+
+            var box = new WpfRichTextBox();
+            var document = new FlowDocument();
+
+            command.Execute(null, box);
+            Assert.That(richTextBoxExecutions, Is.EqualTo(1));
+            Assert.That(flowDocumentExecutions, Is.EqualTo(0));
+
+            command.Execute(null, document);
+            Assert.That(richTextBoxExecutions, Is.EqualTo(1));
+            Assert.That(flowDocumentExecutions, Is.EqualTo(1));
+        });
     }
 }

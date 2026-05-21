@@ -231,3 +231,58 @@ Result: **Passed (4/4)**.
 ### Status
 
 Session 39 is now closed with paragraph-end navigation behavior aligned to WPF structural semantics and with regression tests in place.
+
+## Follow-up Cleanup (same branch, reuse-oriented)
+
+After the session 39 fixes were stable, we did a small cleanup pass specifically to reduce Uno-only policy in the control layer.
+
+### Routed-command shim cleanup
+
+`MS.Internal.Commands.CommandHelpers` had been simplified too aggressively: every registered WPF class command handler was effectively attached globally to the `RoutedCommand`, ignoring the `controlType` it was registered for.
+
+That worked for RichTextBox navigation, but it was a code-reuse regression because it weakened WPF's class-command model and would let future controls accidentally see handlers not meant for them.
+
+Fix:
+
+- `System.Windows.Input.CommandBinding` now stores the registered target type.
+- `System.Windows.Input.RoutedCommand.Execute/CanExecute` now filters bindings by the runtime target object.
+- `MS.Internal.Commands.CommandHelpers.RegisterCommandHandler(...)` now preserves `controlType` when building the binding.
+
+Regression coverage:
+
+- Added `WpfRichTextBoxShellTests.RoutedCommand_ClassHandlers_RespectRegisteredControlType`.
+
+### End-of-document caret cleanup
+
+The session 39 branch had also accumulated end-of-document guard logic in `RichTextBox.uno.cs`:
+
+- `IsAtLastVisiblePosition()`
+- a special-case swallow for `MoveRightByCharacter`
+- local clamping in `UpdateCaretFromSelection()`
+
+Those behaviors were correct for Florence-backed rendering, but they belonged lower in the text-view adapter rather than inside the control.
+
+Fix:
+
+- `UnoFlowDocumentTextView` now exposes `NormalizeToVisiblePosition(ITextPointer)`.
+- `GetRectangleFromTextPosition`, line navigation, caret-unit navigation, and line lookup normalize through that shared helper.
+- `FlowDocumentView.SetCaretAt(ITextPointer)` now normalizes before painting the Uno caret rectangle.
+- `RichTextBox.uno.cs` no longer contains its own "last visible position" policy.
+
+This keeps the WPF `RichTextBox` control code closer to upstream behavior while letting the Florence-backed Uno text view own the mapping from WPF logical positions to visible Uno caret positions.
+
+Focused verification executed after cleanup:
+
+```text
+dotnet run --project UnoRichText/src/LeXtudio.RichText.Tests/LeXtudio.RichText.Tests.csproj -f net10.0-desktop -p:UseNuGetPackage=false -- --uno-runtime-tests --test=LeXtudio.RichText.Tests.Controls.WpfRichTextBoxShellTests.Constructor_CreatesImplicitEmptyFlowDocument --test=LeXtudio.RichText.Tests.Controls.WpfRichTextBoxShellTests.AssignedDocument_IsOwnedAndSerializable --test=LeXtudio.RichText.Tests.Controls.WpfRichTextBoxShellTests.Document_CannotBeSharedAcrossRichTextBoxes --test=LeXtudio.RichText.Tests.Controls.WpfRichTextBoxShellTests.AddChild_ReplacesOnlyImplicitDocument --test=LeXtudio.RichText.Tests.Controls.WpfRichTextBoxShellTests.AppendText_CreatesRunInLastParagraph --test=LeXtudio.RichText.Tests.Controls.WpfRichTextBoxShellTests.SelectionFormatting_CanBeAppliedAtCaret --test=LeXtudio.RichText.Tests.Controls.WpfRichTextBoxShellTests.RoutedCommand_ClassHandlers_RespectRegisteredControlType
+```
+
+### Shell-test cleanup
+
+While validating the reuse cleanup, two RichTextBox shell tests also needed to be brought closer to the actual shared/document model:
+
+- `AssignedDocument_IsOwnedAndSerializable` now passes because `RichTextBox.Document` assignment sets `FlowDocument.Parent = this` in the shared WPF-linked source, rather than depending on a Uno-only ownership side channel.
+- `AppendText_CreatesRunInLastParagraph` now verifies appended text through `TextRange(run.ContentStart, run.ContentEnd).Text`, matching the session 38 text-container work instead of depending on `Run.Text`'s deferred local-value path.
+- The old `AppendText_UsesCurrentTypingFormat` assertion was replaced with `SelectionFormatting_CanBeAppliedAtCaret`. In the current port, public selection formatting APIs work, but `AppendText` is still plain-text insertion and does not yet consume pending typing formatting, so the old assertion was overstating what the shell currently guarantees.
+
+Final focused result: **Passed (7/7)**.

@@ -25,6 +25,8 @@ public sealed partial class MainPage : Page
 {
     private global::Windows.UI.Color currentColor = Colors.Green;
     private WpfRichTextBox? _wpfRichTextBox;
+    private static readonly string _wpfSelectionLogPath =
+        System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rtb-template.log");
 
     public MainPage()
     {
@@ -484,6 +486,7 @@ public sealed partial class MainPage : Page
 
     private void LiveWpfRichTextBox_SelectionChanged(object sender, System.Windows.RoutedEventArgs e)
     {
+        LogWpfSelection("LiveWpfRichTextBox_SelectionChanged");
         UpdateWpfRichTextBoxSelectionStatus();
     }
 
@@ -493,5 +496,36 @@ public sealed partial class MainPage : Page
         WpfRichTextBoxSelectionStatus.Text = string.IsNullOrEmpty(selectedText)
             ? "Selection: none"
             : $"Selection: {selectedText}";
+        LogWpfSelection("UpdateWpfRichTextBoxSelectionStatus");
+    }
+
+    private void LogWpfSelection(string prefix)
+    {
+        try
+        {
+            var selection = _wpfRichTextBox?.Selection;
+            var text = selection?.Text ?? string.Empty;
+            var escaped = text
+                .Replace("\\", "\\\\")
+                .Replace("\r", "\\r")
+                .Replace("\n", "\\n");
+            var label = WpfRichTextBoxSelectionStatus?.Text ?? string.Empty;
+            var document = _wpfRichTextBox?.Document;
+            int? startOffset = null;
+            int? endOffset = null;
+
+            if (selection is not null && document is not null)
+            {
+                startOffset = document.ContentStart.GetOffsetToPosition(selection.Start);
+                endOffset = document.ContentStart.GetOffsetToPosition(selection.End);
+            }
+
+            System.IO.File.AppendAllText(
+                _wpfSelectionLogPath,
+                $"{DateTime.Now:HH:mm:ss.fff}  [Sample] {prefix}: start={startOffset} end={endOffset} empty={selection?.IsEmpty} text=\"{escaped}\" label=\"{label}\"\n");
+        }
+        catch
+        {
+        }
     }
 }
