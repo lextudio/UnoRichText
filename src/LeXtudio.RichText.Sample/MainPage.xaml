@@ -21,6 +21,7 @@
     </Page.Resources>
 
     <TabView
+        x:Name="MainTabs"
         CanDragTabs="False"
         CanReorderTabs="False"
         IsAddTabButtonVisible="False">

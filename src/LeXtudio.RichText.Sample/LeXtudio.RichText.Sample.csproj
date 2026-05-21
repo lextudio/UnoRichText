@@ -22,10 +22,12 @@
 
   <ItemGroup Condition="'$(UseNuGetPackage)' != 'true'">
     <ProjectReference Include="..\..\..\UnoPropertyGrid\src\UnoPropertyGrid\UnoPropertyGrid.csproj" />
+    <ProjectReference Include="..\..\..\wpf-labs\src\DevFlow\LeXtudio.DevFlow.Agent.Uno\LeXtudio.DevFlow.Agent.Uno.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(UseNuGetPackage)' == 'true'">
     <PackageReference Include="LeXtudio.UnoPropertyGrid" />
+    <PackageReference Include="LeXtudio.DevFlow.Agent.Uno" />
   </ItemGroup>
 
   <ItemGroup>
@@ -34,6 +36,5 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\wpf-tools\wpf-labs\src\DevFlow\LeXtudio.DevFlow.Agent.Uno\LeXtudio.DevFlow.Agent.Uno.csproj" />
   </ItemGroup>
 </Project>

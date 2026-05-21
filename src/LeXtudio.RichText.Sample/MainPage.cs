@@ -32,6 +32,11 @@ public sealed partial class MainPage : Page
     {
         InitializeComponent();
 
+        Loaded += (_, _) =>
+        {
+            MainTabs.SelectedIndex = 2;
+        };
+
         LiveRichEditBox.Document.SetText(TextSetOptions.None, "Replace me here");
         MathEditor.Document.SetMathMode(RichEditMathMode.MathOnly);
         mathEditor2.Document.SetMathMode(RichEditMathMode.MathOnly);
