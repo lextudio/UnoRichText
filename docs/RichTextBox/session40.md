@@ -62,22 +62,23 @@ This mirrors the earlier caret strategy:
 - WPF owns logical selection/caret state,
 - Florence/Uno view owns visible geometry.
 
-### 3. Shared hook for selection-change repaint
+### 3. Selection repaint was moved to the Florence-backed render surface
 
 Files:
 
+- `WindowsShims/src/LeXtudio.Windows/MS.Internal.Documents/FlowDocumentView.uno.cs`
 - `WindowsShims/ext/wpf/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls/Primitives/TextBoxBase.cs`
-- `WindowsShims/src/LeXtudio.Windows/System.Windows/Controls/Primitives/TextBoxBase.uno.cs`
+- `WindowsShims/src/LeXtudio.Windows/System.Windows/Controls/Control.cs`
+- `WindowsShims/src/LeXtudio.Windows/System.Windows/Controls/RichTextBox.uno.cs`
 
 Changes:
 
-- `TextBoxBase` is now declared `partial`.
-- Added Uno-side `NotifySelectionChanged()` hook.
-- That hook:
-  - refreshes `FlowDocumentView` selection visuals when the render scope is Florence-backed;
-  - raises the normal `SelectionChanged` routed event.
+- Removed the temporary Uno-specific `TextBoxBase.uno.cs` helper path.
+- `FlowDocumentView` now owns selection repaint and subscribes to `TextSelection.Changed`.
+- `TextBoxBase.OnSelectionChanged` is back to purely raising the normal routed event.
+- `OnApplyTemplate()` was unified as `protected override` across the bridge hierarchy so `Control`, `TextBoxBase`, and `RichTextBox` all use the same visibility.
 
-This keeps the selection-visual refresh attached to shared control lifecycle rather than sprinkling ad hoc refreshes across unrelated code.
+This keeps selection repaint in the actual render layer and removes the old stale shim path from the bridge.
 
 ### 4. Clipboard shim now stores and publishes text
 
@@ -121,11 +122,3 @@ dotnet run --project UnoRichText/src/LeXtudio.RichText.Tests/LeXtudio.RichText.T
 ```
 
 Result: **Passed (7/7)**.
-
-## Next practical validation
-
-Run the sample tab again and verify:
-
-1. click, drag, and release selects visible text on the WPF RichTextBox sample;
-2. `Select all` shows a visible highlight, not only a logical label change;
-3. `Copy Selection` places the selected plain text onto the clipboard.
