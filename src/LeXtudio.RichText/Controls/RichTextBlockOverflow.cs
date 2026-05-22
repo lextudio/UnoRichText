@@ -1,3 +1,4 @@
+#if !WINDOWS_APP_SDK
 // Skeleton implementation of RichTextBlockOverflow targeting WinUI 3 API parity.
 // Real layout chains into the source RichTextBlock; this skeleton wires up the
 // dependency properties, events, and template parts so the compat tool sees the
@@ -161,3 +162,4 @@ public partial class RichTextBlockOverflow : Panel
     internal void RaiseSelectionChanged(RoutedEventArgs e)
         => SelectionChanged?.Invoke(this, e);
 }
+#endif

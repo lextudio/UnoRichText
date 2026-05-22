@@ -1,3 +1,4 @@
+#if !WINDOWS_APP_SDK
 using Microsoft.UI.Xaml;
 
 namespace LeXtudio.UI.Xaml.Controls;
@@ -19,3 +20,4 @@ internal sealed class RichTextBlockTextLayoutHost(RichTextBlock owner) : System.
         owner.InvalidateMeasure();
     }
 }
+#endif

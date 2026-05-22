@@ -1,3 +1,4 @@
+#if !WINDOWS_APP_SDK
 using System.IO;
 
 namespace LeXtudio.UI.Xaml.Controls;
@@ -33,3 +34,4 @@ public static class DragDropLog
         catch { }
     }
 }
+#endif

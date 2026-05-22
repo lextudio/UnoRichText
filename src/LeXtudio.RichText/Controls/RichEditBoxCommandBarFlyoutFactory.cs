@@ -1,3 +1,4 @@
+#if !WINDOWS_APP_SDK
 // Default CommandBarFlyout factory for RichEditBox.SelectionFlyout /
 // ContextFlyout. Mirrors WinUI Gallery's TextCommandBarFlyout shape:
 //   primary strip: Bold / Italic / Underline (icon-over-label toggle buttons)
@@ -192,3 +193,4 @@ internal static class RichEditBoxCommandBarFlyoutFactory
         }
     }
 }
+#endif
