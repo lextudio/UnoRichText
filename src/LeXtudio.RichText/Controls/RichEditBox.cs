@@ -26,7 +26,7 @@ using InputScope = Microsoft.UI.Xaml.Input.InputScope;
 namespace LeXtudio.UI.Xaml.Controls;
 
 #if !WINDOWS_APP_SDK
-[Obsolete("Will be replaced by WPF implementation")]
+[Obsolete("Superseded by RichTextBox ported from WPF")]
 public partial class RichEditBox : ContentControl
 {
     // ---- Dependency properties --------------------------------------------------

@@ -248,7 +248,7 @@
                         <TextBlock
                             FontSize="13"
                             Foreground="#5A5A5A"
-                            Text="System.Windows.Controls.RichTextBox — the ported WPF control. Hosts a FlowDocument via the ported TextEditor/TextBoxBase stack. Rendering is provided by RichTextBlock."
+                            Text="System.Windows.Controls.RichTextBox — the ported WPF control. Hosts a FlowDocument via the ported TextEditor/TextBoxBase stack."
                             TextWrapping="Wrap" />
                     </StackPanel>
                 </ScrollViewer>
@@ -290,7 +290,7 @@
         </TabViewItem>
 
         <TabViewItem
-            Header="RichEditBox"
+            Header="RichEditBox (Obsolete)"
             IsClosable="False">
             <Grid Padding="24" ColumnSpacing="16">
                 <Grid.ColumnDefinitions>
@@ -410,7 +410,7 @@
         </TabViewItem>
 
         <TabViewItem
-            Header="RichEditBox Gallery"
+            Header="RichEditBox Gallery (Obsolete)"
             IsClosable="False">
             <ScrollViewer
                 HorizontalScrollBarVisibility="Disabled"
