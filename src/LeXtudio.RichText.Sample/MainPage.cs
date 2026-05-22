@@ -80,11 +80,19 @@ public sealed partial class MainPage : Page
         var accent = new Span { Foreground = new SolidColorBrush(Colors.Firebrick) };
         accent.Inlines.Add(new Run { Text = "colored" });
         styles.Inlines.Add(accent);
-        styles.Inlines.Add(new Run { Text = ", and " });
+        styles.Inlines.Add(new Run { Text = ", " });
         var underlined = new System.Windows.Documents.Underline();
         underlined.Inlines.Add(new Run { Text = "underlined" });
         styles.Inlines.Add(underlined);
-        styles.Inlines.Add(new Run { Text = " text." });
+        styles.Inlines.Add(new Run { Text = ", " });
+        var struck = new Run { Text = "struck out" };
+        struck.TextDecorations = System.Windows.Media.TextDecorations.Strikethrough;
+        styles.Inlines.Add(struck);
+        styles.Inlines.Add(new Run { Text = ", and a " });
+        var docsLink = new Hyperlink { NavigateUri = new Uri("https://learn.microsoft.com/windows/windows-app-sdk/api/winrt/microsoft.ui.xaml.documents.hyperlink") };
+        docsLink.Inlines.Add(new Run { Text = "blue hyperlink" });
+        styles.Inlines.Add(docsLink);
+        styles.Inlines.Add(new Run { Text = "." });
         document.Blocks.Add(styles);
 
         var note = new Paragraph();
