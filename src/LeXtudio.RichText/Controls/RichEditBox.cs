@@ -29,6 +29,8 @@ namespace LeXtudio.UI.Xaml.Controls;
 [Obsolete("Superseded by RichTextBox ported from WPF")]
 public partial class RichEditBox : ContentControl
 {
+    private static readonly FontFamily s_defaultFontFamily = new("Open Sans");
+
     // ---- Dependency properties --------------------------------------------------
 
     public static DependencyProperty AcceptsReturnProperty { get; } =
@@ -186,10 +188,12 @@ public partial class RichEditBox : ContentControl
 
     public RichEditBox()
     {
+        FontFamily = s_defaultFontFamily;
         Document = new LeXtudioTextDoc();
 
         _editorHost = new LeXtudio.UI.Controls.TextBox
         {
+            FontFamily = FontFamily,
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             // Stretch during arrange, but keep Auto-sized measurement content
@@ -288,9 +292,15 @@ public partial class RichEditBox : ContentControl
         RegisterPropertyChangedCallback(AcceptsReturnProperty, (_, _) => _editorHost.AcceptsReturn = AcceptsReturn);
         RegisterPropertyChangedCallback(TextWrappingProperty, (_, _) => _editorHost.TextWrapping = TextWrapping);
         RegisterPropertyChangedCallback(HeaderProperty, (_, _) => _editorHost.Header = Header);
+        RegisterPropertyChangedCallback(FontFamilyProperty, (_, _) =>
+        {
+            _editorHost.FontFamily = FontFamily;
+            _renderOverlay.FontFamily = FontFamily;
+        });
 
         // Seed the host with the current property values (so they apply before any change).
         _editorHost.PlaceholderText = PlaceholderText ?? string.Empty;
+        _renderOverlay.FontFamily = FontFamily;
     }
 
     /// <summary>Exposes the underlying editor host so RichEditBox.Selection-style helpers can poke into it.</summary>

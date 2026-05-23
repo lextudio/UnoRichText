@@ -25,10 +25,12 @@ namespace LeXtudio.UI.Xaml.Controls;
 #if !WINDOWS_APP_SDK
 public class RichTextBlock : Panel
 {
+    private static readonly FontFamily s_defaultFontFamily = new("Open Sans");
+
     public static DependencyProperty CharacterSpacingProperty { get; } =
         DependencyProperty.Register(nameof(CharacterSpacing), typeof(int), typeof(RichTextBlock), new PropertyMetadata(0, OnLayoutPropertyChanged));
     public static DependencyProperty FontFamilyProperty { get; } =
-        DependencyProperty.Register(nameof(FontFamily), typeof(FontFamily), typeof(RichTextBlock), new PropertyMetadata(new FontFamily("Segoe UI"), OnLayoutPropertyChanged));
+        DependencyProperty.Register(nameof(FontFamily), typeof(FontFamily), typeof(RichTextBlock), new PropertyMetadata(s_defaultFontFamily, OnLayoutPropertyChanged));
     public static DependencyProperty FontSizeProperty { get; } =
         DependencyProperty.Register(nameof(FontSize), typeof(double), typeof(RichTextBlock), new PropertyMetadata(14d, OnLayoutPropertyChanged));
     public static DependencyProperty FontStretchProperty { get; } =
