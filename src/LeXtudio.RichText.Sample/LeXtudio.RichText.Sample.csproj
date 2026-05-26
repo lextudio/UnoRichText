@@ -35,6 +35,4 @@
     <PackageReference Include="CommunityToolkit.WinUI.Controls.Sizers" />
   </ItemGroup>
 
-  <ItemGroup>
-  </ItemGroup>
 </Project>

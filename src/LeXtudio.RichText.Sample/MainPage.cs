@@ -505,12 +505,59 @@ public sealed partial class MainPage : Page
     private void SelectAllWpfRichTextBox_Click(object sender, RoutedEventArgs e)
     {
         _wpfRichTextBox?.SelectAll();
+        ForceWpfRichTextBoxVisualRefresh();
         UpdateWpfRichTextBoxSelectionStatus();
     }
 
     private void CopyWpfRichTextBoxSelection_Click(object sender, RoutedEventArgs e)
     {
         _wpfRichTextBox?.Copy();
+    }
+
+    private void ToggleBoldWpfRichTextBox_Click(object sender, RoutedEventArgs e)
+    {
+        LogWpfSelection("ToggleBoldWpfRichTextBox_Click:not-implemented");
+    }
+
+    private void ToggleItalicWpfRichTextBox_Click(object sender, RoutedEventArgs e)
+    {
+        LogWpfSelection("ToggleItalicWpfRichTextBox_Click:not-implemented");
+    }
+
+    private void ToggleUnderlineWpfRichTextBox_Click(object sender, RoutedEventArgs e)
+    {
+        // Underline toggle can be introduced once TextDecorations exposure is unified in the shim.
+        LogWpfSelection("ToggleUnderlineWpfRichTextBox_Click:not-implemented");
+    }
+
+    private void InsertTimestampWpfRichTextBox_Click(object sender, RoutedEventArgs e)
+    {
+        if (_wpfRichTextBox?.Selection is null)
+        {
+            return;
+        }
+
+        _wpfRichTextBox.Selection.Text = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ";
+        _wpfRichTextBox.Focus(FocusState.Keyboard);
+        ForceWpfRichTextBoxVisualRefresh();
+        LogWpfSelection("InsertTimestampWpfRichTextBox_Click");
+        UpdateWpfRichTextBoxSelectionStatus();
+    }
+
+    private void ForceWpfRichTextBoxVisualRefresh()
+    {
+        if (_wpfRichTextBox is null)
+        {
+            return;
+        }
+
+        _wpfRichTextBox.InvalidateMeasure();
+        _wpfRichTextBox.InvalidateArrange();
+        _wpfRichTextBox.UpdateLayout();
+        WpfRichTextBoxHost?.InvalidateMeasure();
+        WpfRichTextBoxHost?.InvalidateArrange();
+        WpfRichTextBoxHost?.UpdateLayout();
+        UpdateLayout();
     }
 
     private void LiveWpfRichTextBox_SelectionChanged(object sender, System.Windows.RoutedEventArgs e)
