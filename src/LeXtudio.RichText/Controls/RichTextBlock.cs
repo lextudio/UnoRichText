@@ -100,7 +100,17 @@ public class RichTextBlock : Panel
 
     // All live RichTextBlock instances — used to clear other blocks' selections on pointer press.
     private static readonly List<WeakReference<RichTextBlock>> AllInstances = new();
-    private static readonly System.Windows.Documents.FlowDocument WpfCollectionOwner = new();
+    // Owners of this control's Inlines/Blocks collections. Each WPF TextElementCollection stores
+    // its items in its owner's TextContainer, so the two collections MUST have SEPARATE owners:
+    //  • per-instance — a shared (static) owner would make every RichTextBlock corrupt one
+    //    another's content;
+    //  • distinct owners for Inlines vs Blocks — sharing one owner means adding a Paragraph to
+    //    Blocks lands in the same container Inlines reads, and CollectFlatItems' unconditional
+    //    Inlines.Count would cast that Paragraph to Inline and throw during layout.
+    // The owners are themselves valid containers for their element type (FlowDocument holds
+    // Blocks; Span holds Inlines), satisfying the WPF text schema.
+    private readonly System.Windows.Documents.FlowDocument _blockOwner = new();
+    private readonly System.Windows.Documents.Span _inlineOwner = new();
 
     private readonly Canvas _canvas = new();
     // Use the WPF-shaped collections from System.Windows.Documents (our shim) explicitly —
@@ -142,8 +152,8 @@ public class RichTextBlock : Panel
         VerticalAlignment = VerticalAlignment.Top;
         HorizontalAlignment = HorizontalAlignment.Stretch;
         _textLayoutHost = new RichTextBlockTextLayoutHost(this);
-        _inlines = new System.Windows.Documents.InlineCollection(WpfCollectionOwner, true);
-        _blocks = new System.Windows.Documents.BlockCollection(WpfCollectionOwner, true);
+        _inlines = new System.Windows.Documents.InlineCollection(_inlineOwner, true);
+        _blocks = new System.Windows.Documents.BlockCollection(_blockOwner, true);
 
         lock (AllInstances)
         {
