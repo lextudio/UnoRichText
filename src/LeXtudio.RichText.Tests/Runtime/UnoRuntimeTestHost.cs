@@ -60,7 +60,7 @@ internal static class UnoRuntimeTestHost
         if (RuntimeTestApp.NUnitArguments is null)
         {
             throw new InvalidOperationException(
-                "Dispatcher-bound tests must run inside the Uno runtime app. Use: dotnet run --project UnoRichText/src/LeXtudio.RichText.Tests/LeXtudio.RichText.Tests.csproj -f net10.0-desktop -p:UseNuGetPackage=false -- --uno-runtime-tests --test=<fixture>");
+                "Dispatcher-bound tests must run inside the Uno runtime app. Use: dotnet run --project UnoRichText/src/LeXtudio.RichText.Tests/LeXtudio.RichText.Tests.csproj -f net10.0-desktop -p:UseNuGetPackages=false -- --uno-runtime-tests --test=<fixture>");
         }
 
         return Ready.Task.WaitAsync(TimeSpan.FromSeconds(10));

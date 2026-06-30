@@ -194,7 +194,7 @@ public sealed class MetadataLoader : IDisposable
         yield return richText;
 
         // LeXtudio.Windows.dll: prefer the copy next to LeXtudio.RichText.dll. When LeXtudio.RichText
-        // consumes LeXtudio.Windows via NuGet (UseNuGetPackage=true), that file is not copied to bin —
+        // consumes LeXtudio.Windows via NuGet (UseNuGetPackages=true), that file is not copied to bin —
         // the deps.json scan + GetSubjectType fallback below will resolve types from the NuGet cache.
         var windowsShim = Path.Combine(outputDir, "LeXtudio.Windows.dll");
         if (File.Exists(windowsShim))

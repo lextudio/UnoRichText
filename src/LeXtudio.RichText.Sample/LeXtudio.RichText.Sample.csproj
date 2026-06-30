@@ -13,19 +13,19 @@
     <UnoFeatures>SkiaRenderer;SpellChecking;</UnoFeatures>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UseNuGetPackage>true</UseNuGetPackage>
+    <UseNuGetPackages>true</UseNuGetPackages>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\LeXtudio.RichText\LeXtudio.RichText.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(UseNuGetPackage)' != 'true'">
+  <ItemGroup Condition="'$(UseNuGetPackages)' != 'true'">
     <ProjectReference Include="..\..\..\UnoPropertyGrid\src\UnoPropertyGrid\UnoPropertyGrid.csproj" />
     <ProjectReference Include="..\..\..\wpf-labs\src\DevFlow\LeXtudio.DevFlow.Agent.Uno\LeXtudio.DevFlow.Agent.Uno.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(UseNuGetPackage)' == 'true'">
+  <ItemGroup Condition="'$(UseNuGetPackages)' == 'true'">
     <PackageReference Include="LeXtudio.UnoPropertyGrid" />
     <PackageReference Include="LeXtudio.DevFlow.Agent.Uno" />
   </ItemGroup>
